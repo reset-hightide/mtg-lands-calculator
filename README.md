@@ -26,6 +26,7 @@ As cartas vêm da [API do Scryfall](https://scryfall.com/docs/api) em tempo real
 - Reestimar a regressão (`tools/build_data.py`) devolve os coeficientes publicados (CMC, compra, aceleração e cores na 3ª casa; termos de arquétipo dentro de ~0,1).
 - Regras de arquétipo e cores: 100% de concordância com as colunas do Excel do trabalho em 400 decks.
 - Regras de carta contra o Scryfall atual, em 392 decks da base: compra+aceleração iguais às do Karsten em 97,7% dos decks; diferença média ≈ 0,02 terreno.
+- Ponta a ponta (lista -> Scryfall -> regras -> fórmula) em 392 decks reais da base: com arquétipo e cores informados, a diferença média para o modelo do trabalho é de 0,03 terreno (97,7% dos decks a menos de 0,1); no modo automático, 0,10 (91,3% a menos de 0,1). Contra o número real de terrenos, o erro é o mesmo do trabalho (MAE ≈ 1,4 nessa amostra).
 - Leitura/escrita de `.xlsx`, parser de listas, fórmulas escaladas para 40/60/100 cartas e fluxos da interface (ver `tests/`).
 
 ```bash
