@@ -303,6 +303,23 @@
     return card.produced_mana || (card.card_faces && card.card_faces[0] && card.card_faces[0].produced_mana) || [];
   }
 
+  const BASIC_TYPE_COLOR = { plains: 'W', island: 'U', swamp: 'B', mountain: 'R', forest: 'G' };
+  /**
+   * Fetch land tipado (ex.: Scalding Tarn "Search your library for an Island or Mountain card"): conta como fonte das
+   * cores dos tipos que busca. Quem busca "qualquer terreno básico" (Evolving Wilds, Fabled Passage, Terramorphic Reverie)
+   * conta como fonte das cinco cores.
+   */
+  function fetchColors(card) {
+    const t = oracleFor(card).toLowerCase();
+    if (!/sacrifice/.test(t)) return [];
+    const m = t.match(/search your library for an? ([^.]*?) card/);
+    if (!m) return [];
+    if (/\bbasic land\b/.test(m[1])) return ['W', 'U', 'B', 'R', 'G'];   // "qualquer terreno básico": alcança as cinco cores
+    const out = [];
+    for (const [type, col] of Object.entries(BASIC_TYPE_COLOR)) if (new RegExp('\\b' + type + '\\b').test(m[1]) && !out.includes(col)) out.push(col);
+    return out;
+  }
+
   /** "Free spells" (Force of Will, Solitude...) não contam para a regra de pips múltiplos. */
   function isFreeSpell(card) {
     const t = oracleFor(card).toLowerCase();
@@ -318,7 +335,9 @@
     const pips = z(), maxSingle = z(), rampCredit = z(), landSources = z();
     for (const c of cards) {
       if (c.cls.isLand) {
-        for (const col of producedOf(c.card)) if (col in landSources) landSources[col] += c.qty;
+        const prod = producedOf(c.card);
+        const cols = prod.length ? prod : fetchColors(c.card);   // fetch land: cores dos tipos de terreno que ele busca
+        for (const col of cols) if (col in landSources) landSources[col] += c.qty;
         continue;
       }
       const cp = pipsOfCost(frontCost(c.card)), free = isFreeSpell(c.card);
@@ -385,6 +404,6 @@
   return {
     ARCHETYPES, MODEL, MDFC_WEIGHT, SIZES, predict,
     classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, splitDecorations, sectionFromCategories, analyzeEntries, guessSize, normalizeColors,
-    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell,
+    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, fetchColors,
   };
 });

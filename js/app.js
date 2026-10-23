@@ -224,7 +224,7 @@
       ${warn}
       <h4>Fontes de mana por cor <span class="muted small">(para ${r.sources.lands} terrenos)</span></h4>
       <div class="srcgrid">${r.sources.rows.map(sourceCard).join('')}</div>
-      <p class="muted small" style="margin-top:8px">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands não entram em “hoje”.</p>
+      <p class="muted small" style="margin-top:8px">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands contam como fonte das cores que podem buscar (Scalding Tarn = azul e vermelho; Evolving Wilds, que busca qualquer básico, = as cinco).</p>
       ${adjust}
       <details><summary>Cartas que entram na conta (desmarque para tirar da contagem)</summary>
         <table><thead><tr><th>Qtd</th><th>Carta</th><th>Custo</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
