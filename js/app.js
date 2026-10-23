@@ -9,15 +9,13 @@
 
   const state = { decks: [], results: [], busy: false };
 
-  // ------------------------------------------------------------------ abas
-  function setTab(excel) {
-    $('tabExcel').classList.toggle('on', excel); $('tabPaste').classList.toggle('on', !excel);
-    $('paneExcel').classList.toggle('hidden', !excel); $('panePaste').classList.toggle('hidden', excel);
-  }
-  $('tabExcel').onclick = () => setTab(true);
-  $('tabPaste').onclick = () => setTab(false);
+  // ------------------------------------------------------------------ colar lista
+  $('btnShowPaste').onclick = () => {
+    const p = $('panePaste'); p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden')) $('deckText').focus();
+  };
 
-  function status(msg, err) { const s = $('status'); s.textContent = msg; s.className = 'status' + (err ? ' err' : ''); }
+  function status(msg, err, busy) { const s = $('status'); s.textContent = msg; s.className = 'status' + (err ? ' err' : '') + (busy ? ' busy' : ''); }
 
   // ------------------------------------------------------------------ download
   function download(bytes, name) {
@@ -33,7 +31,7 @@
     if (!file) return;
     if (file.size > 15 * 1024 * 1024) return status('Arquivo grande demais (máx. 15 MB).', true);
     try {
-      status('Lendo a planilha…');
+      status('Lendo a planilha…', false, true);
       let sheets;
       if (/\.csv$/i.test(file.name)) sheets = { Cartas: XlsxLite.parseCsv(await file.text()) };
       else if (/\.xlsx$/i.test(file.name)) sheets = await XlsxLite.readXlsx(await file.arrayBuffer());
@@ -83,13 +81,13 @@ Sideboard
     if (state.busy) return;
     state.busy = true;
     try {
-      status('Buscando cartas no Scryfall…');
-      await Scryfall.fetchCards(Pipeline.allNames(decks), { onProgress: (a, b) => status(`Buscando cartas no Scryfall… ${a}/${b}`) });
+      status('Buscando cartas no Scryfall…', false, true);
+      await Scryfall.fetchCards(Pipeline.allNames(decks), { onProgress: (a, b) => status(`Buscando cartas no Scryfall… ${a}/${b}`, false, true) });
       state.decks = decks;
       recalc();
       const g = $('globalWarnings'); g.textContent = warnings.join(' '); g.classList.toggle('hidden', !warnings.length);
       $('results').classList.remove('hidden');
-      status(`${decks.length} deck(s) analisado(s).`);
+      status(`${decks.length} deck(s) analisado(s). Role para ver o resultado.`);
       $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       status('Não consegui consultar o Scryfall: ' + (e.message || e) + ' Verifique sua conexão e tente de novo.', true);
@@ -102,49 +100,67 @@ Sideboard
   }
 
   // ------------------------------------------------------------------ renderização
+  const num = x => (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : f1(x));
+
+  function sourceCard(x) {
+    const pct = x.needed ? Math.min(100, Math.round(100 * x.current / x.needed)) : 100;
+    const faixa = x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? `${x.tableRange[0]}` : `${x.tableRange[0]}–${x.tableRange[1]}`) : null;
+    const falta = x.needed - x.current;
+    const status = x.current >= x.needed - 1e-9 ? '<span class="pos">suficiente</span>' : `<span class="neg">faltam ≈ ${num(falta)}</span>`;
+    const notes = [`Fórmula: ${x.byFormula} (${Math.round(x.share * 100)}% dos pips)`];
+    if (faixa) notes.push(`Tabela de ${x.multiPip >= 4 ? '4+' : x.multiPip} pips: ${faixa}`);
+    if (x.rampCredit) notes.push(`Ramp: −${f1(x.rampCredit)} → terrenos devem dar ${x.fromLands}`);
+    return `<div class="src c${x.color}">
+      <div class="srchead"><span class="pip ${x.color}"></span><b>${COLOR_NAMES[x.color]}</b><span class="muted small">${num(x.pips)} pips</span></div>
+      <div class="srcnum"><span class="n2">${x.needed}</span><span>fontes necessárias</span></div>
+      <div class="bar2"><i style="width:${pct}%"></i></div>
+      <p class="barlbl">Nos seus terrenos hoje: <b>${num(x.current)}</b> · ${status}</p>
+      <ul class="srcnotes">${notes.map(n => `<li>${n}</li>`).join('')}</ul>
+    </div>`;
+  }
+
   function deckHtml(r, i) {
     if (!r.ok) return `<article class="deck"><h3>${esc(r.name)}</h3><p class="neg">${esc(r.error)}</p>${r.missing && r.missing.length ? `<p class="muted small">Não encontradas: ${esc(r.missing.join(', '))}</p>` : ''}</article>`;
     const d = state.decks[i], p = d.params;
-    const cmp = Math.abs(r.delta) < 0.5 ? 'está alinhado com o modelo' : r.delta > 0 ? `faltam ≈ <b class="pos">${f1(r.delta)}</b> terrenos` : `sobram ≈ <b class="neg">${f1(-r.delta)}</b> terrenos`;
+    const cmp = Math.abs(r.delta) < 0.5 ? 'alinhado com o modelo' : r.delta > 0 ? `faltam ≈ ${f1(r.delta)}` : `sobram ≈ ${f1(-r.delta)}`;
     const sel = (key, opts, cur) => `<select data-i="${i}" data-k="${key}">${opts.map(([v, t]) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
     const auto = v => (v === '' || v == null || /^auto/i.test(String(v)));
     const archCur = auto(p.archetype) ? 'Auto' : r.archetype;
     const sizeCur = auto(p.size) ? 'Auto' : r.size;
     const compCur = auto(p.companion) ? 'Auto' : (r.companion ? 'Sim' : 'Não');
     const chips = 'WUBRG'.split('').map(c => `<span class="chip${r.colorsList.includes(c) ? ' on' : ''}" data-c="${c}" data-i="${i}" title="${COLOR_NAMES[c]}">${COLOR_NAMES[c]}</span>`).join('');
+    const pipsBadge = r.colorsList ? r.colorsList.split('').map(c => `<span class="pip ${c}"></span>`).join('') : '<span class="muted">sem cor</span>';
     const flagged = r.cards.filter(c => c.cls.draw || c.cls.ramp || c.cls.mdfc).sort((a, b) => a.name.localeCompare(b.name));
     const excluded = d.excluded || new Set();
-    const rows = r.cards.length ? flagged.concat(excluded.size ? [] : []).map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="num">${c.cls.cmc}</td><td>${c.cls.draw ? '<span class="tag draw">compra barata</span>' : ''}${c.cls.ramp ? '<span class="tag ramp">aceleração barata</span>' : ''}${c.cls.mdfc ? `<span class="tag mdfc">MDFC ${c.cls.mdfc === 'mythic' ? 'mítico (0,74)' : '(0,38)'}</span>` : ''}</td><td>${c.cls.draw || c.cls.ramp ? `<input type="checkbox" checked data-i="${i}" data-x="${esc(c.name)}">` : ''}</td></tr>`).join('') : '';
+    const rows = flagged.map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="num">${c.cls.cmc}</td><td>${c.cls.draw ? '<span class="tag draw">compra barata</span>' : ''}${c.cls.ramp ? '<span class="tag ramp">aceleração barata</span>' : ''}${c.cls.mdfc ? `<span class="tag mdfc">MDFC ${c.cls.mdfc === 'mythic' ? 'mítico (0,74)' : '(0,38)'}</span>` : ''}</td><td>${c.cls.draw || c.cls.ramp ? `<input type="checkbox" checked data-i="${i}" data-x="${esc(c.name)}">` : ''}</td></tr>`).join('');
     const exRows = [...excluded].map(n => `<tr><td></td><td>${esc(n)}</td><td></td><td><span class="muted">fora da contagem</span></td><td><input type="checkbox" data-i="${i}" data-x="${esc(n)}"></td></tr>`).join('');
-    const num = x => (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : f1(x));
-    const srcRows = r.sources.rows.map(x => {
-      const gap = x.fromLands - x.current;
-      const hoje = x.current ? `<span class="${gap > 0.5 ? 'neg' : 'pos'}">${num(x.current)}</span>` : '<span class="muted">0</span>';
-      const faixa = x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? `${x.tableRange[0]}` : `${x.tableRange[0]}–${x.tableRange[1]}`) + ` (${x.multiPip >= 4 ? '4+' : x.multiPip} pips)` : '–';
-      return `<tr><td><span class="chip on" data-c="${x.color}" style="cursor:default">${COLOR_NAMES[x.color]}</span></td><td class="num">${num(x.pips)}</td><td class="num">${Math.round(x.share * 100)}%</td><td class="num">${x.byFormula}</td><td class="num">${faixa}</td><td class="num"><b>${x.needed}</b></td><td class="num">${x.rampCredit ? f1(x.rampCredit) : '–'}</td><td class="num"><b>${x.fromLands}</b></td><td class="num">${hoje}</td></tr>`;
-    }).join('');
     const warn = r.warnings.length ? `<p class="warn">${r.warnings.map(esc).join('<br>')}</p>` : '';
     return `<article class="deck">
-      <header><h3>${esc(r.name)}</h3><span class="muted small">${r.mainTotal} cartas no main · ${r.pureLands} terrenos + ${f2(r.currentLands - r.pureLands)} de MDFC</span></header>
-      <div class="hero"><div class="big">${f2(r.lands)}</div>
-        <div><b>terrenos recomendados</b> (≈ ${r.rounded})<br><span class="muted">faixa típica ${f1(r.low)} a ${f1(r.high)} · Karsten: ${f2(r.karsten)}</span></div></div>
-      <p>Seu deck tem ${f2(r.currentLands)} terrenos (MDFC ponderados): ${cmp}.</p>
-      ${warn}
-      <div class="grid">
-        <div><label>Arquétipo <span class="muted">(${esc(r.archetypeSource)})</span></label>${sel('archetype', [['Auto', 'Auto'], ...Rules.ARCHETYPES.map(a => [a, a])], archCur)}</div>
-        <div><label>Tamanho <span class="muted">(${esc(r.sizeSource)})</span></label>${sel('size', [['Auto', 'Auto'], [40, '40 cartas'], [60, '60 cartas'], [100, '100 cartas']], sizeCur)}</div>
-        <div><label>Companion <span class="muted">(${esc(r.companionSource)})</span></label>${sel('companion', [['Auto', 'Auto'], ['Sim', 'Sim'], ['Não', 'Não']], compCur)}</div>
-        <div><label>Cores <span class="muted">(${esc(r.colorsSource)})</span></label><div class="chips">${chips}<span class="chip" data-i="${i}" data-auto="1">Auto</span></div></div>
+      <div class="deckhead"><h3>${esc(r.name)}</h3>
+        <div class="meta">
+          <span class="badge"><b>${r.mainTotal}</b> cartas</span>
+          <span class="badge">Arquétipo <b>${esc(r.archetype)}</b></span>
+          <span class="badge">Cores ${pipsBadge}</span>
+          <span class="badge">${r.pureLands} terrenos + ${f2(r.currentLands - r.pureLands)} de MDFC</span>
+        </div></div>
+      <div class="kpis">
+        <div class="kpi main"><span class="k">Terrenos recomendados</span><span class="v">${f2(r.lands)}</span><span class="s">≈ ${r.rounded} · faixa típica ${f1(r.low)} a ${f1(r.high)}</span></div>
+        <div class="kpi"><span class="k">Seu deck hoje</span><span class="v">${f2(r.currentLands)}</span><span class="s">${cmp}</span></div>
+        <div class="kpi"><span class="k">Karsten (referência)</span><span class="v">${f2(r.karsten)}</span><span class="s">modelo anterior</span></div>
+        <div class="kpi"><span class="k">CMC · compra · ramp</span><span class="v">${f2(r.cmc)}</span><span class="s">${r.draw} compra · ${r.ramp} aceleração</span></div>
       </div>
-      <table><tbody>
-        <tr><td class="muted">Custo médio de mana (mágicas)</td><td class="num">${f2(r.cmc)}</td></tr>
-        <tr><td class="muted">Compra barata (CMC ≤ 2)</td><td class="num">${r.draw}</td></tr>
-        <tr><td class="muted">Aceleração barata (CMC ≤ 2)</td><td class="num">${r.ramp}</td></tr>
-        <tr><td class="muted">Número de cores</td><td class="num">${r.inputs.colors}</td></tr>
-      </tbody></table>
-      <h3 style="margin-top:18px">Fontes de mana por cor <span class="muted small">(para ${r.sources.lands} terrenos)</span></h3>
-      <table><thead><tr><th>Cor</th><th class="num">Pips</th><th class="num">% dos pips</th><th class="num">Fórmula</th><th class="num">Tabela (pips múltiplos)</th><th class="num">Fontes necessárias</th><th class="num">Crédito de ramp</th><th class="num">Terrenos devem dar</th><th class="num">Nos seus terrenos hoje</th></tr></thead><tbody>${srcRows}</tbody></table>
-      <p class="muted small">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima. Se alguma carta exige 2, 3 ou 4+ pips da cor (exceto free spells), vale no mínimo a tabela. Criaturas que produzem mana valem 1/3 de fonte e artefatos 2/3. Um terreno de duas cores conta como fonte das duas. “Hoje” soma só terrenos que declaram a mana que produzem (fetch lands e similares não entram).</p>
+      ${warn}
+      <h4>Fontes de mana por cor <span class="muted small">(para ${r.sources.lands} terrenos)</span></h4>
+      <div class="srcgrid">${r.sources.rows.map(sourceCard).join('')}</div>
+      <p class="muted small" style="margin-top:8px">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands não entram em “hoje”.</p>
+      <details class="adjust"><summary>Ajustar arquétipo, tamanho, companion ou cores</summary>
+        <div class="grid">
+          <div><label>Arquétipo <span class="muted">(${esc(r.archetypeSource)})</span></label>${sel('archetype', [['Auto', 'Auto'], ...Rules.ARCHETYPES.map(a => [a, a])], archCur)}</div>
+          <div><label>Tamanho <span class="muted">(${esc(r.sizeSource)})</span></label>${sel('size', [['Auto', 'Auto'], [40, '40 cartas'], [60, '60 cartas'], [100, '100 cartas']], sizeCur)}</div>
+          <div><label>Companion <span class="muted">(${esc(r.companionSource)})</span></label>${sel('companion', [['Auto', 'Auto'], ['Sim', 'Sim'], ['Não', 'Não']], compCur)}</div>
+          <div><label>Cores <span class="muted">(${esc(r.colorsSource)})</span></label><div class="chips">${chips}<span class="chip" data-i="${i}" data-auto="1">Auto</span></div></div>
+        </div>
+      </details>
       <details><summary>Cartas que entram na conta (desmarque para tirar da contagem)</summary>
         <table><thead><tr><th>Qtd</th><th>Carta</th><th class="num">CMC</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
       </details>
