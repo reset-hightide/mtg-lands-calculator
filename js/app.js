@@ -93,16 +93,15 @@
     if (state.rolling || state.busy) return;
     state.rolling = true;
     try {
+      // já busca um deck de Commander de verdade (EDHREC) enquanto a roda gira; sem rede, cai nos exemplos locais
+      const livePromise = typeof DeckApi !== 'undefined' ? DeckApi.randomCommanderDeck({ top: 300 }).catch(() => null) : Promise.resolve(null);
       const wheel = await Wheel.spin();
       if (wheel.cancelled) return;
-      // vários decks por símbolo: sorteia entre eles, evitando repetir o último
-      let pool = EXAMPLES.map((e, i) => i).filter(i => EXAMPLES[i].wheel === wheel.symbol);
-      if (pool.length > 1) pool = pool.filter(i => i !== state.lastExample);
-      const idx = pool[Math.floor(Math.random() * pool.length)];
+      // o sorteio é sempre de Commander (o mais rápido): ao vivo pelo EDHREC; sem rede, o Commander local de reserva
+      const idx = Math.max(0, EXAMPLES.findIndex(e => e.live));
       state.lastExample = idx;
       const ex = EXAMPLES[idx];
-      let liveDeck = null;
-      if (ex.live && typeof DeckApi !== "undefined") liveDeck = await DeckApi.randomCommanderDeck();   // deck de Commander de verdade (EDHREC); sem rede, cai no exemplo local
+      const liveDeck = await livePromise;   // deck de Commander de verdade; null = sem rede, usa o exemplo local sorteado
       wheel.say(liveDeck ? liveDeck.name : ex.name);   // só o nome do deck sorteado
       if (!liveDeck) await Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção das cartas
       await sleep(900);

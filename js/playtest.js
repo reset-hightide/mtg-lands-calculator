@@ -36,7 +36,7 @@
       const o = e.card.oracle_text || '';
       const c = {
         id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(),
-        colors: e.card.colors || [], typeLine: e.card.type_line || '', oracle: o,
+        colors: e.card.colors || [], cmc: e.card.cmc || 0, typeLine: e.card.type_line || '', oracle: o,
         etbTapped: /enters (?:the battlefield )?tapped/i.test(o) && !/unless|you may pay|if you control|if you don't|fewer/i.test(o),
         prof: root.PtFx ? root.PtFx.analyze(e.card) : { type: '', fetchTypes: [] }, where: 'lib', x: 0, y: 0, z: 0, tapped: false,
       };
@@ -200,7 +200,7 @@
       setTimeout(() => { if (P && c.where === 'table') exit(c, 'fade'); }, 1900);
       return;
     }
-    F.cast(c.name, c.colors, el);
+    F.cast(c.name, c.colors, el, c.cmc);   // custo baixo = efeito sutil; custo alto = a tela toda
   }
 
   // ------------------------------------------------------------------ ligação com a página
