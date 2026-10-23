@@ -213,3 +213,90 @@ test('normalizeColors e guessSize', () => {
   assert.equal(R.normalizeColors('WUBRG'), 'WUBRG');
   assert.equal(R.guessSize(40), 40); assert.equal(R.guessSize(60), 60); assert.equal(R.guessSize(75), 60); assert.equal(R.guessSize(100), 100);
 });
+
+// ---------------------------------------------------------------- Archidekt
+test('Archidekt: linhas do export de texto (set, coleção, foil, categorias, tag de cor)', () => {
+  const text = [
+    '1x Sol Ring (c21) 263 [Ramp,Artifact] ^Buy,#0066ff^',
+    '1x Command Tower (cmm) 421 *F* [Land]',
+    '2x Lightning Bolt (m10) 146',
+    "1x Atraxa, Praetors' Voice (cmm) 7 [Commander{top}]",
+    '1x Fire // Ice (mh2) 290 [Removal{noPrice}]',
+    '1x Jwari Disruption // Jwari Ruins (znr) 66a',
+    '1x Brainstorm (mmq) 61 [Maybeboard{noDeck}{noPrice}]',
+    '1x Shock (m21) 159 [Ideas{noDeck}]',
+    '1x Rest in Peace (a25) 9 [Sideboard]',
+    '1x Lurrus of the Dream-Den (iko) 226 [Companion]',
+  ].join('\n');
+  const p = R.parseDeck(text);
+  assert.deepEqual([...p.main.entries()], [['Sol Ring', 1], ['Command Tower', 1], ['Lightning Bolt', 2], ["Atraxa, Praetors' Voice", 1], ['Fire // Ice', 1], ['Jwari Disruption // Jwari Ruins', 1]]);
+  assert.deepEqual([...p.side.entries()], [['Rest in Peace', 1], ['Lurrus of the Dream-Den', 1]]);
+  assert.equal(p.ignored, 2); assert.equal(p.companionSection, true);
+});
+
+test('Archidekt/Moxfield: splitDecorations devolve nome limpo e categorias', () => {
+  const d = R.splitDecorations('1x Sol Ring (c21) 263 *F* [Ramp{top},Artifact] ^Have,#37d67a^'.replace(/^1x /, ''));
+  assert.equal(d.name, 'Sol Ring');
+  assert.deepEqual(d.categories.map(c => c.name), ['Ramp', 'Artifact']);
+  assert.deepEqual(d.categories[0].flags, ['top']);
+  assert.equal(R.cleanName('Wear // Tear (dgm) 135 *E*'), 'Wear // Tear');
+  assert.equal(R.cleanName("Urza's Saga (mh2) 259"), "Urza's Saga");
+  assert.equal(R.cleanName('Plains'), 'Plains');
+});
+
+// ---------------------------------------------------------------- fontes de mana por cor
+test('pips: custo de mana -> pips por cor (híbrido 0,5; {2/W} e Phyrexian valem 1; genérico/X ignorados)', () => {
+  assert.deepEqual(R.pipsOfCost('{2}{W}{W}'), { W: 2, U: 0, B: 0, R: 0, G: 0 });
+  assert.deepEqual(R.pipsOfCost('{G/U}{G/U}'), { W: 0, U: 1, B: 0, R: 0, G: 1 });
+  assert.deepEqual(R.pipsOfCost('{2/W}{B/P}{X}{C}{S}{R}'), { W: 1, U: 0, B: 1, R: 1, G: 0 });
+  assert.deepEqual(R.pipsOfCost(''), { W: 0, U: 0, B: 0, R: 0, G: 0 });
+});
+
+test('fontes: exemplo do post (28 pips azuis + 8 brancos, 20 terrenos -> 16 e 5 fontes)', () => {
+  const info = { pips: { W: 8, U: 28, B: 0, R: 0, G: 0 }, totalPips: 36, maxSingle: { W: 1, U: 1, B: 0, R: 0, G: 0 }, rampCredit: { W: 0, U: 0, B: 0, R: 0, G: 0 }, landSources: { W: 0, U: 0, B: 0, R: 0, G: 0 } };
+  const rows = R.requiredSources(info, 20, 60);
+  assert.deepEqual(rows.map(r => [r.color, r.needed]), [['W', 5], ['U', 16]]);
+  near(rows[1].byFormula, 16); near(28 / 36 * 20, 15.5556, 1e-3);
+});
+
+test('fontes: pips múltiplos usam a tabela (14–16 / 20 / 23–25; 100 cartas 22–26 / 28–30 / 32+) e crédito de ramp', () => {
+  const mk = (maxU) => ({ pips: { W: 0, U: 20, B: 0, R: 10, G: 0 }, totalPips: 30, maxSingle: { W: 0, U: maxU, B: 0, R: 1, G: 0 }, rampCredit: { W: 0, U: 1, B: 0, R: 0, G: 0 }, landSources: { W: 0, U: 0, B: 0, R: 0, G: 0 } });
+  const u = (maxU, lands, size) => R.requiredSources(mk(maxU), lands, size).find(r => r.color === 'U');
+  assert.equal(u(2, 10, 40).needed, 14);          // fórmula daria 7; a tabela exige 14
+  assert.deepEqual(u(2, 10, 40).tableRange, [14, 16]);
+  assert.equal(u(3, 20, 60).needed, 20);
+  assert.equal(u(4, 24, 60).needed, 23);          // fórmula 16 < 23
+  assert.equal(u(4, 24, 60).fromLands, 22);       // 23 - 1 de ramp (3 criaturas), arredondado para cima
+  assert.equal(u(2, 40, 100).needed, 27);         // fórmula 27 > mín. 22
+  assert.equal(u(3, 20, 100).needed, 28);
+  assert.equal(u(4, 20, 100).needed, 32);
+  assert.equal(u(6, 20, 60).needed, 23);          // 4+ pips = linha de 4
+  assert.equal(u(1, 24, 60).tableRange, null);
+});
+
+test('sourcesInfo: pips x cópias, free spells fora da regra de múltiplos, ramp 0,33/0,66, fontes nos terrenos e MDFC', () => {
+  const c = (name, o) => ({ name, qty: o.qty, cls: R.classifyCard(o.card), card: o.card });
+  const card = o => ({ name: 'X', cmc: 2, type_line: 'Instant', oracle_text: '', layout: 'normal', rarity: 'common', mana_cost: '', keywords: [], ...o });
+  const cards = [
+    c('Counterspell', { qty: 4, card: card({ name: 'Counterspell', mana_cost: '{U}{U}' }) }),
+    c('Lightning Bolt', { qty: 4, card: card({ name: 'Lightning Bolt', cmc: 1, mana_cost: '{R}' }) }),
+    c('Force of Will', { qty: 4, card: card({ name: 'Force of Will', cmc: 5, mana_cost: '{3}{U}{U}', oracle_text: "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost." }) }),
+    c('Birds', { qty: 3, card: card({ name: 'Birds of Paradise', cmc: 1, type_line: 'Creature — Bird', mana_cost: '{G}', oracle_text: '{T}: Add one mana of any color.', produced_mana: ['W', 'U', 'B', 'R', 'G'] }) }),
+    c('Sol Ring', { qty: 1, card: card({ name: 'Sol Ring', cmc: 1, type_line: 'Artifact', mana_cost: '{1}', oracle_text: '{T}: Add {C}{C}.', produced_mana: ['C'] }) }),
+    c('Mox Opal', { qty: 2, card: card({ name: 'Mox Opal', cmc: 0, type_line: 'Legendary Artifact', mana_cost: '{0}', oracle_text: '{T}: Add one mana of any color.', produced_mana: ['W', 'U', 'B', 'R', 'G'] }) }),
+    c('Island', { qty: 10, card: card({ name: 'Island', cmc: 0, type_line: 'Basic Land — Island', produced_mana: ['U'] }) }),
+    c('Mdfc', { qty: 2, card: card({ name: 'Mdfc', layout: 'modal_dfc', rarity: 'rare', type_line: 'Instant // Land', mana_cost: '', card_faces: [{ type_line: 'Instant', mana_cost: '{1}{G}', oracle_text: '' }, { type_line: 'Land', mana_cost: '', oracle_text: '', produced_mana: ['G'] }] }) }),
+  ];
+  const info = R.sourcesInfo(cards);
+  near(info.pips.U, 8 + 8);                      // Counterspell 4x2 + Force of Will 4x2
+  near(info.pips.R, 4); near(info.pips.G, 3 + 2);
+  assert.equal(info.maxSingle.U, 2);             // Counterspell
+  assert.equal(info.maxSingle.G, 1);
+  assert.equal(R.isFreeSpell(cards[2].card), true);
+  near(info.rampCredit.G, 3 / 3 + 2 * 2 / 3); near(info.rampCredit.U, 3 / 3 + 2 * 2 / 3);
+  assert.equal(info.rampCredit.W > 0, true);
+  near(info.landSources.U, 10); near(info.landSources.G, 2 * 0.38);
+  // Force of Will sozinho não dispara a tabela de pips múltiplos
+  const only = R.sourcesInfo([cards[2]]);
+  assert.equal(only.maxSingle.U, 0);
+});

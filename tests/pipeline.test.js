@@ -166,7 +166,7 @@ test('buildResults: planilha de resultado relê corretamente', async () => {
   const d = deck([['Island', 24], ['Llanowar Elves', 4], ['Big', 32], ['Inexistente', 1]], [], { archetype: 'Aggro', colors: 'G' });
   const res = P.evaluateDeck(d, get);
   const wb = await X.readXlsx(toAB(T.buildResults([res, { name: 'Falhou', ok: false, error: 'x', warnings: [] }])));
-  assert.deepEqual(Object.keys(wb), ['Resumo', 'Cartas']);
+  assert.deepEqual(Object.keys(wb), ['Resumo', 'Fontes de mana', 'Cartas']);
   assert.equal(wb.Resumo[0][0], 'Deck'); assert.equal(wb.Resumo[1][0], 'Meu deck');
   near(wb.Resumo[1][1], Math.round(res.lands * 100) / 100, 1e-9);
   assert.equal(wb.Resumo[1][12], 'Aggro'); assert.match(wb.Resumo[2][1], /erro/);
@@ -187,4 +187,46 @@ test('evaluateDeck: cartas excluídas deixam de contar como compra/aceleração'
   assert.equal(a.draw, 4); assert.equal(b.draw, 0); assert.equal(b.ramp, 4);
   near(b.lands - a.lands, 0.2283 * 4, 1e-9);
   near(b.cmc, a.cmc, 1e-12);   // CMC não muda
+});
+
+// ---------------------------------------------------------------- Archidekt e fontes de mana no pipeline
+test('pipeline: células da aba Cartas no formato do Archidekt (set, categoria, Maybeboard, Sideboard)', () => {
+  const { decks, warnings } = P.decksFromSheets({ Cartas: [
+    ['Deck', 'Quantidade', 'Carta', 'Seção'],
+    ['A', '', '4x Llanowar Elves (m19) 314 [Ramp,Creature]', ''],
+    ['', '', '20x Forest (ana) 66 *F* [Land]', ''],
+    ['', '', '1x Brainstorm (mmq) 61 [Maybeboard{noDeck}{noPrice}]', ''],
+    ['', '', '2x Negate (m20) 54 [Sideboard]', ''],
+    ['', 1, 'Opt (m21) 60 ^Buy,#0066ff^', 'Main'],
+  ] });
+  assert.equal(decks[0].main.get('Llanowar Elves'), 4); assert.equal(decks[0].main.get('Forest'), 20); assert.equal(decks[0].main.get('Opt'), 1);
+  assert.equal(decks[0].main.has('Brainstorm'), false);
+  assert.equal(decks[0].side.get('Negate'), 2);
+  assert.ok(warnings.some(w => /Maybeboard/.test(w)));
+});
+
+test('pipeline: texto colado do Archidekt vira deck e avisa das cartas ignoradas', () => {
+  const d = P.deckFromText('4x Opt (m21) 60 [Cantrip]\n20x Island (ana) 63 [Land]\n1x Brainstorm (mmq) 61 [Maybeboard{noDeck}]', 'Teste');
+  assert.equal(d.main.get('Opt'), 4); assert.equal(d.ignored, 1);
+  const r = P.evaluateDeck(d, get);
+  assert.ok(r.warnings.some(w => /Maybeboard/.test(w)));
+});
+
+test('evaluateDeck: fontes de mana por cor usam os terrenos recomendados arredondados', () => {
+  const DB2 = {
+    ...DB,
+    Counterspell: card({ name: 'Counterspell', cmc: 2, mana_cost: '{U}{U}', colors: ['U'] }),
+    Shock: card({ name: 'Shock', cmc: 1, mana_cost: '{R}', colors: ['R'] }),
+    Island: card({ name: 'Island', type_line: 'Basic Land — Island', cmc: 0, produced_mana: ['U'] }),
+    Mountain: card({ name: 'Mountain', type_line: 'Basic Land — Mountain', cmc: 0, produced_mana: ['R'] }),
+  };
+  const d = deck([['Island', 12], ['Mountain', 10], ['Counterspell', 24], ['Shock', 14]], [], { archetype: 'Tempo', colors: 'UR', size: 60 });
+  const r = P.evaluateDeck(d, n => DB2[n]);
+  const rows = Object.fromEntries(r.sources.rows.map(x => [x.color, x]));
+  assert.equal(r.sources.lands, Math.round(r.lands));
+  near(r.sources.totalPips, 24 * 2 + 14);
+  assert.equal(rows.U.byFormula, Math.ceil(48 / 62 * r.sources.lands - 1e-9));
+  assert.equal(rows.U.multiPip, 2); assert.ok(rows.U.needed >= 14);   // Counterspell: UU => tabela
+  assert.equal(rows.R.multiPip, 1);
+  assert.equal(rows.U.current, 12); assert.equal(rows.R.current, 10);
 });
