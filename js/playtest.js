@@ -15,9 +15,10 @@
 
   let H = null;                 // ganchos do app
   let P = null;                 // partida em andamento: { all, lib, hand, table, cmd } (null = site normal)
-  let dragging = 0, lastTap = { id: null, t: 0 }, zTop = 3000;
+  let dragging = 0, zTop = 3000;
 
-  const cardW = () => Math.max(84, Math.min(118, root.innerWidth * 0.085));
+  /** Largura da carta da mão (a mesma da mesa). Mede a carta do leque; se ainda não existe, usa a mesma fórmula do CSS. */
+  const cardW = () => { const fc = H && H.fan.querySelector('.fc'); return (fc && fc.offsetWidth) || Math.max(92, Math.min(180, root.innerWidth * 0.155)); };
   const hit = (el, x, y) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8; };
   const face = c => c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}" draggable="false">` : `<span class="ptn">${esc(c.name)}</span>`;
   const find = id => P && (P.all.find(c => c.id === id) || P.cmd.find(c => c.id === id));
@@ -28,7 +29,7 @@
     const ctx = H.context(); if (!ctx) return null;
     let n = 0; const all = [], cmd = [];
     for (const e of ctx.cards) for (let i = 0; i < e.qty; i++) {
-      const c = { id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, where: 'lib', x: 0, y: 0, z: 0, tapped: false };
+      const c = { id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(), where: 'lib', x: 0, y: 0, z: 0, tapped: false };
       if (e.commander) { c.where = 'cmd'; cmd.push(c); } else all.push(c);
     }
     const lib = shuffle(all.slice()), hand = [];
@@ -51,6 +52,14 @@
     H.renderFan(P.hand.map(c => ({ name: c.name, img: c.img, uri: c.uri, isLand: c.land, pid: c.id, fresh: c.id === freshId })));
     H.cmd.querySelectorAll('.cmdcard').forEach((el, i) => { const c = P.cmd[i]; el.dataset.pid = c ? c.id : ''; el.style.visibility = c && c.where !== 'cmd' ? 'hidden' : ''; });
     badge();
+    const fresh = H.fan.querySelector('.fc.fresh');   // carta recém-comprada: parte do grimório e voa até o lugar dela na mão
+    if (fresh) {
+      fresh.style.setProperty('animation', 'none', 'important');   // mede a posição final, sem a animação já deslocando a carta
+      const g = H.grim.getBoundingClientRect(), r = fresh.getBoundingClientRect();
+      fresh.style.setProperty('--fx', (g.left + 36 - (r.left + r.width / 2)) + 'px'); fresh.style.setProperty('--fy', (g.top + g.height / 2 - (r.top + r.height / 2)) + 'px');
+      void fresh.offsetWidth; fresh.style.removeProperty('animation');   // agora a animação parte do grimório
+      H.grim.classList.add('pull'); setTimeout(() => H.grim.classList.remove('pull'), 450);
+    }
   }
   function flash(t) { let m = document.getElementById('ptmsg'); if (!m) { m = document.createElement('div'); m.id = 'ptmsg'; document.body.appendChild(m); } m.textContent = t; m.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => m.classList.remove('on'), 1800); }
   function draw() {
@@ -63,7 +72,7 @@
   // ------------------------------------------------------------------ cartas por cima da página
   function tableEl(c) {
     let el = document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`);
-    if (!el) { el = document.createElement('div'); el.className = 'ptcard'; el.dataset.pid = c.id; el.title = c.name + ' (duplo clique vira)'; el.innerHTML = face(c); document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.className = 'ptcard'; el.dataset.pid = c.id; el.title = c.name + ' (clique para virar)'; el.innerHTML = face(c); document.body.appendChild(el); }
     el.style.width = cardW() + 'px'; el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; el.style.zIndex = c.z; el.classList.toggle('tapped', c.tapped);
     return el;
   }
@@ -109,7 +118,7 @@
     const cleanup = () => { root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', up); root.removeEventListener('pointercancel', up); cancelAnimationFrame(raf); };
     const up = ev => {
       cleanup(); H.grim.classList.remove('drop'); document.body.classList.remove('pt-drag');
-      if (!moved) { const t = ev.target.closest && ev.target.closest('.ptcard'); if (t && P) { const k = find(+t.dataset.pid); if (k && k.where === 'table') tap(k); } return; }
+      if (!moved) { const t = ev.target.closest && ev.target.closest('.ptcard'); if (t && P) { const k = find(+t.dataset.pid); if (k && k.where === 'table') tap(k); } return; }   // clique na carta da mesa: vira
       if (ghost) ghost.remove(); if (el) el.style.opacity = '';
       root.addEventListener('click', ck => { ck.preventDefault(); ck.stopPropagation(); }, { capture: true, once: true });   // o arrasto não pode abrir link nem comprar mão
       setTimeout(() => { dragging = Math.max(0, dragging - 1); }, 80);
@@ -122,9 +131,19 @@
     };
     root.addEventListener('pointermove', move); root.addEventListener('pointerup', up); root.addEventListener('pointercancel', up);
   }
-  function tap(c) {   // duplo clique rápido vira / desvira
-    const now = Date.now();
-    if (lastTap.id === c.id && now - lastTap.t < 380) { lastTap.id = null; c.tapped = !c.tapped; tableEl(c); } else lastTap = { id: c.id, t: now };
+  function tap(c) {   // clique vira / desvira; terreno que acabou de virar solta o símbolo da mana
+    c.tapped = !c.tapped; const el = tableEl(c);
+    if (c.tapped && c.land) manaPop(c, el);
+  }
+  /** Símbolo(s) de mana da cor que o terreno produz: sobe bem rápido e some. */
+  function manaPop(c) {
+    const cols = [...new Set(c.produced)].filter(x => 'WUBRGC'.includes(x)).slice(0, 5);
+    if (!cols.length || !root.Mana) return;
+    const size = 26, gap = 4, w = cols.length * size + (cols.length - 1) * gap, cw = cardW();
+    const m = document.createElement('div'); m.className = 'ptmana';
+    m.style.left = (c.x + cw / 2 - w / 2) + 'px'; m.style.top = (c.y + cw * RATIO / 2 - size / 2) + 'px';
+    m.innerHTML = cols.map(x => root.Mana.icon(x, size)).join('');
+    document.body.appendChild(m); setTimeout(() => m.remove(), 800);
   }
 
   // ------------------------------------------------------------------ ligação com a página
