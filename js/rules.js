@@ -275,26 +275,28 @@
 
   // ------------------------------------------------------------------ agregação do deck
   /**
-   * entries: [{ name, qty, card }] do main deck (card = objeto Scryfall)
-   * -> variáveis do modelo + detalhes por carta
+   * entries: [{ name, qty, card, commander }] do deck (card = objeto Scryfall)
+   * -> variáveis do modelo + detalhes por carta.
+   * Free spells (custo alternativo ou "cheatadas") custam 0 de mana: entram na média de custo (CMC) com valor 0, o que
+   * diminui o número de terrenos recomendado. `opts.free` (Map nome -> bool) deixa o usuário corrigir a lista.
    */
-  function analyzeEntries(entries) {
+  function analyzeEntries(entries, opts) {
     let sumCmc = 0, spells = 0, draw = 0, ramp = 0, pureLands = 0, mdfcLands = 0, nonmythic = 0, mythic = 0, total = 0;
-    const cards = [];
-    for (const e of entries) {
-      const cls = classifyCard(e.card);
-      total += e.qty;
-      cards.push({ name: e.card.name, qty: e.qty, cls, card: e.card, commander: !!e.commander });
-      if (cls.isLand) { pureLands += e.qty; continue; }
-      sumCmc += cls.cmc * e.qty; spells += e.qty;
-      if (cls.draw) draw += e.qty;
-      if (cls.ramp) ramp += e.qty;
-      if (cls.mdfc === 'nonmythic') { nonmythic += e.qty; mdfcLands += e.qty * MDFC_WEIGHT.nonmythic; }
-      if (cls.mdfc === 'mythic')    { mythic += e.qty;    mdfcLands += e.qty * MDFC_WEIGHT.mythic; }
+    const cards = entries.map(e => ({ name: e.card.name, qty: e.qty, cls: classifyCard(e.card), card: e.card, commander: !!e.commander }));
+    const free = freeSpellInfo(cards, opts && opts.free).names;
+    for (const c of cards) {
+      const cls = c.cls;
+      total += c.qty;
+      if (cls.isLand) { pureLands += c.qty; continue; }
+      sumCmc += (free.has(c.name) ? 0 : cls.cmc) * c.qty; spells += c.qty;
+      if (cls.draw) draw += c.qty;
+      if (cls.ramp) ramp += c.qty;
+      if (cls.mdfc === 'nonmythic') { nonmythic += c.qty; mdfcLands += c.qty * MDFC_WEIGHT.nonmythic; }
+      if (cls.mdfc === 'mythic')    { mythic += c.qty;    mdfcLands += c.qty * MDFC_WEIGHT.mythic; }
     }
     return {
       cmc: spells ? sumCmc / spells : 0, draw, ramp, pureLands, nonmythic, mythic, total, spells,
-      currentLands: pureLands + mdfcLands, cards,
+      currentLands: pureLands + mdfcLands, cards, freeCount: [...free].reduce((a, n) => a + cards.filter(c => c.name === n).reduce((x, c) => x + c.qty, 0), 0),
     };
   }
 

@@ -139,7 +139,7 @@
       if (canon(name) !== canon(card.name) && canon(name) !== canon(String(card.name).split(' // ')[0])) corrected.push(`“${name}” → “${card.name}”`);
       entries.push({ name, qty, card, commander: isCmdr });
     }
-    const agg = Rules.analyzeEntries(entries);
+    const agg = Rules.analyzeEntries(entries, { free: deck.freeOverride });
     const mainTotal = [...deck.main.values(), ...cmdrs.values()].reduce((a, b) => a + b, 0);   // o comandante conta nas 100 cartas
     const p = deck.params || {};
 
@@ -193,7 +193,7 @@
       cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, mainTotal, pureLands: agg.pureLands, currentLands: agg.currentLands,
       nonmythic: agg.nonmythic, mythic: agg.mythic,
       lands: pred.lands, rounded: Math.round(pred.lands), karsten: pred.karsten, low: pred.lands - rmse, high: pred.lands + rmse,
-      delta: pred.lands - agg.currentLands, cards: agg.cards, sources, free: info.free, commanders: agg.cards.filter(c => c.commander), missing, warnings,
+      freeCount: agg.freeCount, delta: pred.lands - agg.currentLands, cards: agg.cards, sources, free: info.free, commanders: agg.cards.filter(c => c.commander), missing, warnings,
     };
   }
 
