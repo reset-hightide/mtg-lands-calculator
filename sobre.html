@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sobre o modelo · Calculadora de Terrenos</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Sobre o modelo</h1>
+    <nav><a href="index.html">Calculadora</a><a href="base.html">Base de dados</a><a href="sobre.html" class="on">Sobre o modelo</a></nav>
+  </div>
+</header>
+<main class="wrap prose">
+  <section class="panel">
+    <h2>O que é</h2>
+    <p>Uma regressão linear múltipla (mínimos quadrados) que estima a quantidade de terrenos de um deck de Magic a partir de: custo médio de mana das mágicas (CMC), número de mágicas baratas (CMC ≤ 2) de compra de cartas e de aceleração de mana, presença de companion, número de cores, arquétipo e a interação entre número de cores e arquétipo.</p>
+    <p>É a extensão do modelo de Frank Karsten (<a href="https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/" target="_blank" rel="noopener">TCGplayer, 2022</a>) desenvolvida no trabalho “Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas” (Penatti &amp; Costa, 2026).</p>
+    <pre>terrenos(60) = 20,2185 + 1,4316·CMC − 0,2283·compra_barata − 0,2304·aceleração_barata
+               + 0,0364·companion + 0,6391·cores + δ(arquétipo) + γ(arquétipo)·cores
+
+terrenos(N)  = (N/60)·(20,2185 + 1,4316·CMC + Z) − 0,2283·compra_barata − 0,2304·aceleração_barata
+               (Z = termos de companion, cores, arquétipo e interação; compra/aceleração não escalam)</pre>
+  </section>
+
+  <section class="panel">
+    <h2>Desempenho</h2>
+    <table>
+      <thead><tr><th>Critério (amostra de teste, 1.965 decks)</th><th class="num">Karsten</th><th class="num">Modelo proposto</th></tr></thead>
+      <tbody>
+        <tr><td>R² de teste</td><td class="num">0,418</td><td class="num">0,563</td></tr>
+        <tr><td>Erro absoluto médio (MAE)</td><td class="num">1,49</td><td class="num">1,31</td></tr>
+        <tr><td>RMSE</td><td class="num">2,06</td><td class="num">1,79</td></tr>
+        <tr><td>Decks em que cada modelo errou menos</td><td class="num">42,7%</td><td class="num">57,3%</td></tr>
+      </tbody>
+    </table>
+    <p class="muted small">Por isso a calculadora mostra uma “faixa típica” de ±1 RMSE (≈ ±1,8 terreno) em torno do valor recomendado: é um ponto de partida, não um número exato.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Como as cartas são lidas</h2>
+    <ul>
+      <li>As cartas vêm da API do <a href="https://scryfall.com/docs/api" target="_blank" rel="noopener">Scryfall</a>, em tempo real, então novas edições entram automaticamente (resultados ficam em cache no seu navegador por 7 dias).</li>
+      <li><b>Compra barata</b>: carta não-terreno com CMC ≤ 2 cujo texto contém “draw a card/two cards/three cards”, sem “{4}”, “Blood token” ou “investigate” (criaturas precisam de “when … enters”); mágicas que olham o grimório e colocam carta na mão; ou ciclagem por {1}.</li>
+      <li><b>Aceleração barata</b>: CMC ≤ 2, não é compra, e produz mana (“add …”), busca terreno no grimório, ou coloca criatura da mão no campo (ex.: Aether Vial).</li>
+      <li>MDFC terreno/mágica contam como <b>0,38</b> terreno (não míticos) ou <b>0,74</b> (míticos) e como mágica no CMC; nunca como compra/aceleração barata.</li>
+      <li><b>Arquétipo e cores automáticos</b> reproduzem as regras do Excel do trabalho (nome do deck + cartas-chave + quantidade de terrenos). Você pode sempre corrigir manualmente.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>Coeficientes</h2>
+    <p class="muted small">Coeficientes publicados no trabalho e reestimativa com a base completa (mesmas variáveis, mesmos pesos de MDFC).</p>
+    <table id="coefs"><thead><tr><th>Variável</th><th class="num">Publicado</th><th class="num">Reestimado</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="panel">
+    <h2>Limitações</h2>
+    <ul>
+      <li>O modelo foi estimado com decks de 60 cartas, 2020–2022, vencedores. Para 40 e 100 cartas é uma extrapolação proporcional.</li>
+      <li>O arquétipo é uma simplificação (7 classes). Se o seu deck foge do padrão, escolha o arquétipo manualmente.</li>
+      <li>CMC e contagem de cartas baratas não captam tudo (utility lands, mana sinks, qualidade da aceleração). Karsten sugere ajustar para mais ou para menos conforme a eficiência das suas cartas; use a lista de cartas para tirar da contagem as que você considera ruins.</li>
+    </ul>
+  </section>
+</main>
+<footer class="wrap muted small">Não afiliado à Wizards of the Coast.</footer>
+<script>
+fetch('data/model_fit.json').then(r => r.json()).then(m => {
+  const body = document.querySelector('#coefs tbody');
+  Object.keys(m.paper).forEach(k => body.insertAdjacentHTML('beforeend',
+    `<tr><td>${k.replace('Colors*', 'cores × ').replace('Quantity_of_colors', 'Nº de cores')}</td><td class="num">${m.paper[k].toFixed(4)}</td><td class="num">${m.refit[k].toFixed(4)}</td></tr>`));
+  body.insertAdjacentHTML('beforeend', `<tr><td>R² (base completa)</td><td class="num">${m.paper_metrics_on_all_data.r2.toFixed(4)}</td><td class="num">${m.refit_metrics.r2.toFixed(4)}</td></tr>`);
+}).catch(() => {});
+</script>
+</body>
+</html>

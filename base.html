@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Base de dados · Calculadora de Terrenos</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Base de dados <span class="muted">· 39.287 decks vencedores</span></h1>
+    <p class="muted">Base usada para estimar o modelo (decks com mais vitórias que derrotas, MTG Melee, jul/2020 a jul/2022), enriquecida com arquétipo e número de cores.
+      Fonte original: <a href="https://www.kaggle.com/datasets/frankkarsten/mtg-lands" target="_blank" rel="noopener">Frank Karsten, Kaggle</a>.</p>
+    <nav><a href="index.html">Calculadora</a><a href="base.html" class="on">Base de dados</a><a href="sobre.html">Sobre o modelo</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <div id="summary" class="grid"></div>
+    <div class="filters" style="margin-top:14px">
+      <div><label for="fText">Buscar (link do deck)</label><input id="fText" type="text" placeholder="ex.: 29181"></div>
+      <div><label for="fFormat">Formato</label><select id="fFormat"><option value="">Todos</option></select></div>
+      <div><label for="fArch">Arquétipo</label><select id="fArch"><option value="">Todos</option></select></div>
+      <div><label for="fColors">Nº de cores</label><select id="fColors"><option value="">Todos</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+      <div><label for="fMin">Terrenos (ajustados) mín.</label><input id="fMin" type="number" step="0.5"></div>
+      <div><label for="fMax">Terrenos (ajustados) máx.</label><input id="fMax" type="number" step="0.5"></div>
+    </div>
+    <div class="row">
+      <a href="data/decks.csv" download><button class="ghost" type="button">Baixar base completa (.csv)</button></a>
+      <button id="btnFiltered" class="ghost" type="button">Baixar filtrada (.csv)</button>
+      <span id="count" class="muted small"></span>
+    </div>
+  </section>
+
+  <section class="panel" style="overflow-x:auto">
+    <table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+    <div class="pager"><button id="prev" class="ghost" type="button">‹ Anterior</button><span id="page" class="muted"></span><button id="next" class="ghost" type="button">Próxima ›</button></div>
+    <p class="muted small">Colunas: <b>lands</b> = terrenos puros; <b>lands_mdfc</b> = terrenos + MDFC ponderados (0,38 não míticos / 0,74 míticos), variável-resposta do modelo; <b>cheap_draw / cheap_ramp</b> = compra/aceleração barata (CMC ≤ 2), regras do Karsten.</p>
+  </section>
+</main>
+<footer class="wrap muted small">Os registros apontam para páginas públicas do MTG Melee; nomes de jogadores não foram incluídos.</footer>
+<script src="js/base.js"></script>
+</body>
+</html>

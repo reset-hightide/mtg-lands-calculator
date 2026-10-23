@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora de Terrenos · Magic: The Gathering</title>
+<meta name="description" content="Recomenda quantos terrenos usar no seu deck de Magic com regressão linear múltipla (arquétipo, cores, custo de mana, compra e aceleração baratas).">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Calculadora de Terrenos <span class="muted">· Magic: The Gathering</span></h1>
+    <p class="muted">Regressão linear múltipla com arquétipo e número de cores, estendendo o modelo de Frank Karsten.
+      Cartas lidas ao vivo no Scryfall, então sets novos entram sozinhos.</p>
+    <nav><a href="index.html" class="on">Calculadora</a><a href="base.html">Base de dados</a><a href="sobre.html">Sobre o modelo</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button id="tabExcel" class="on" role="tab">Planilha Excel</button>
+      <button id="tabPaste" role="tab">Colar lista</button>
+    </div>
+
+    <div id="paneExcel">
+      <ol class="steps">
+        <li><b>Baixe o template</b> e preencha a aba <i>Cartas</i> (e, se quiser, a aba <i>Decks</i>). Vários decks por arquivo.
+          <div class="row"><button id="btnTemplate">Baixar template (.xlsx)</button></div></li>
+        <li><b>Envie a planilha preenchida</b> (.xlsx ou .csv).
+          <label id="drop" class="drop" for="file">Arraste o arquivo aqui ou clique para escolher<input id="file" type="file" accept=".xlsx,.csv" hidden></label></li>
+      </ol>
+    </div>
+
+    <div id="panePaste" class="hidden">
+      <label for="deckName">Nome do deck <span class="muted">(ajuda a identificar arquétipo e cores, ex.: “Izzet Tempo”)</span></label>
+      <input id="deckName" type="text" placeholder="Meu deck" maxlength="80">
+      <label for="deckText">Lista (Arena, MTGO, Moxfield…)</label>
+      <textarea id="deckText" spellcheck="false" placeholder="4 Llanowar Elves&#10;4 Growth Spiral&#10;20 Forest&#10;&#10;Sideboard&#10;1 Lurrus of the Dream-Den"></textarea>
+      <div class="row"><button id="btnPaste">Calcular</button><button id="btnSample" class="ghost">Preencher exemplo</button></div>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section id="results" class="hidden">
+    <div class="row between">
+      <h2>Resultado</h2>
+      <button id="btnDownload" class="ghost">Baixar resultado (.xlsx)</button>
+    </div>
+    <p id="globalWarnings" class="warn hidden"></p>
+    <div id="decks"></div>
+  </section>
+</main>
+
+<footer class="wrap muted small">
+  Modelo: Penatti &amp; Costa (2026), 39.287 decks vencedores. Regras de compra/aceleração baratas: Karsten (2022),
+  <a href="https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/" target="_blank" rel="noopener">TCGplayer</a>.
+  Dados das cartas: <a href="https://scryfall.com/docs/api" target="_blank" rel="noopener">Scryfall</a>.
+  Ponto de partida para o deckbuilding: o erro típico do modelo é de ±1,8 terreno. Não afiliado à Wizards of the Coast.
+</footer>
+
+<script src="js/rules.js"></script>
+<script src="js/scryfall.js"></script>
+<script src="js/xlsx-lite.js"></script>
+<script src="js/pipeline.js"></script>
+<script src="js/template.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
