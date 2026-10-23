@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calculadora de Terrenos · Magic: The Gathering</title>
-<meta name="description" content="Recomenda quantos terrenos usar no seu deck de Magic e quantas fontes de mana de cada cor.">
+<meta name="description" content="Cole a lista do seu deck e veja quantos terrenos e quantas fontes de mana de cada cor ele precisa.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232b253a'/%3E%3Ccircle cx='14' cy='32' r='5' fill='%23f8f2d0'/%3E%3Ccircle cx='23' cy='32' r='5' fill='%236fb6f0'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239a8dab'/%3E%3Ccircle cx='41' cy='32' r='5' fill='%23ee7b5f'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%236dc98a'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=20261024">
+<link rel="stylesheet" href="css/style.css?v=20261026">
 </head>
 <body>
 <header class="topbar">
@@ -23,51 +23,56 @@
   <div class="colorbar"></div>
 </header>
 
-<section class="hero2">
+<section class="hero3">
   <div class="wrap">
-    <h1>Quantos <b>terrenos</b> e fontes de mana<br>o seu deck precisa?</h1>
-    <p>Envie a lista do deck e receba o número de terrenos e de fontes de cada cor. Funciona com Excel e com a lista exportada do Archidekt.</p>
-
-    <div class="actions">
-      <button class="bigbtn primary" id="btnTemplate" type="button">
-        <span class="n">1</span><b>Baixar o template</b><small>Planilha Excel (.xlsx) com um deck de exemplo</small>
-      </button>
-      <label class="bigbtn primary drop" id="drop" for="file">
-        <span class="n">2</span><b>Enviar a planilha</b><small>.xlsx ou .csv · clique ou arraste o arquivo aqui</small>
-        <input id="file" type="file" accept=".xlsx,.csv">
-      </label>
-      <button class="bigbtn" id="btnShowPaste" type="button">
-        <span class="n">⌘</span><b>Colar uma lista</b><small>Archidekt, Arena, MTGO, Moxfield…</small>
-      </button>
-    </div>
-
-    <div id="panePaste" class="paste hidden">
-      <div class="twocol">
-        <div>
-          <label for="deckName">Nome do deck <span class="muted">(ajuda a achar arquétipo e cores, ex.: “Izzet Tempo”)</span></label>
-          <input id="deckName" type="text" placeholder="Meu deck" maxlength="80">
-          <p class="muted small" style="margin-top:12px"><b>No Archidekt:</b> More ▸ Export deck ▸ Text ▸ copiar. Cartas em Maybeboard são ignoradas e o Sideboard é separado.</p>
-        </div>
-        <div>
-          <label for="deckText">Lista do deck</label>
-          <textarea id="deckText" spellcheck="false" placeholder="1x Llanowar Elves (m19) 314 [Ramp]&#10;4 Growth Spiral&#10;20 Forest&#10;&#10;Sideboard&#10;1 Lurrus of the Dream-Den"></textarea>
-        </div>
-      </div>
-      <div class="row"><button id="btnPaste" type="button">Calcular</button><button id="btnSample" class="ghost small" type="button">Preencher exemplo</button></div>
-    </div>
-
-    <div id="status" class="status" role="status" aria-live="polite"></div>
-
-    <div class="minis">
-      <a class="mini" href="base.html">Ver a base de dados</a>
-      <a class="mini" href="sobre.html">Como o modelo funciona</a>
-      <a class="mini" href="sobre.html#fontes">Como contamos as fontes de mana</a>
-      <a class="mini" href="https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas" target="_blank" rel="noopener">Ler o artigo ↗</a>
-    </div>
+    <h1>Quantos <b>terrenos</b> e fontes de mana o seu deck precisa?</h1>
+    <p>Cole a lista (Archidekt, Arena, MTGO, Moxfield…) e o resultado aparece sozinho.</p>
   </div>
 </section>
 
-<main class="wrap page">
+<main class="wrap">
+  <section class="workbench">
+    <div class="wb-main">
+      <div class="step"><span class="sn">1</span><b>Cole a lista do deck</b>
+        <span class="steplinks"><button id="btnSample" class="linkbtn" type="button">usar exemplo</button><button id="btnClear" class="linkbtn" type="button">limpar</button></span></div>
+      <textarea id="deckText" spellcheck="false" placeholder="Cole aqui a lista exportada do Archidekt (More ▸ Export deck ▸ Text), Arena, MTGO ou Moxfield.&#10;&#10;1x Llanowar Elves (m19) 314 [Ramp]&#10;4 Growth Spiral&#10;20 Forest&#10;&#10;Sideboard&#10;1 Lurrus of the Dream-Den"></textarea>
+
+      <div class="step"><span class="sn">2</span><b>Opções</b><span class="muted small">tudo em automático: só mexa se quiser corrigir</span></div>
+      <div class="opts">
+        <div><label for="deckName">Nome do deck <span class="muted">(opcional)</span></label>
+          <input id="deckName" type="text" placeholder="ex.: Izzet Tempo (ajuda no arquétipo)" maxlength="80"></div>
+        <div><label for="optSize">Tamanho do deck</label>
+          <select id="optSize"><option value="Auto">Auto</option><option value="40">40 cartas</option><option value="60">60 cartas</option><option value="100">100 cartas (Commander)</option></select></div>
+        <div><label for="optArch">Arquétipo</label>
+          <select id="optArch"><option value="Auto">Auto</option><option>Aggro</option><option>Tempo</option><option>Midrange</option><option>Control</option><option>Combo</option><option>Ramp</option><option>Lands</option></select></div>
+        <div><label for="optComp">Companion</label>
+          <select id="optComp"><option value="Auto">Auto</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
+      </div>
+      <label style="margin-top:12px">Cores do deck</label>
+      <div class="chips" id="optColors">
+        <span class="chip auto on" id="chipAuto">Auto</span>
+        <span class="chip" data-c="W">Branco</span><span class="chip" data-c="U">Azul</span><span class="chip" data-c="B">Preto</span><span class="chip" data-c="R">Vermelho</span><span class="chip" data-c="G">Verde</span>
+      </div>
+      <div id="detect" class="detect hidden"></div>
+
+      <div class="row">
+        <button id="btnPaste" class="btn-lg" type="button">Calcular terrenos</button>
+        <span id="status" class="status" role="status" aria-live="polite">O resultado aparece sozinho quando você cola a lista.</span>
+      </div>
+    </div>
+
+    <aside class="wb-side">
+      <h3>Prefere usar Excel?</h3>
+      <p class="muted small">Vários decks de uma vez, numa planilha.</p>
+      <button id="btnTemplate" class="btn-side" type="button"><b>Baixar o template</b><small>.xlsx com um deck de exemplo</small></button>
+      <label id="drop" class="dz" for="file"><b>Enviar planilha preenchida</b><small>.xlsx ou .csv · clique ou arraste aqui</small>
+        <input id="file" type="file" accept=".xlsx,.csv" hidden></label>
+      <hr>
+      <h3>Para conferir</h3>
+      <p class="side-links"><a class="sbtn" href="base.html">Base de dados</a> <a class="sbtn" href="sobre.html">Como funciona</a> <a class="sbtn" href="sobre.html#fontes">Fontes de mana</a></p>
+    </aside>
+  </section>
+
   <section id="results" class="hidden">
     <div class="reshead">
       <h2>Resultado</h2>
@@ -87,11 +92,12 @@
   </div>
 </footer>
 
-<script src="js/rules.js?v=20261024"></script>
-<script src="js/scryfall.js?v=20261024"></script>
-<script src="js/xlsx-lite.js?v=20261024"></script>
-<script src="js/pipeline.js?v=20261024"></script>
-<script src="js/template.js?v=20261024"></script>
-<script src="js/app.js?v=20261024"></script>
+<script src="js/mana.js?v=20261026"></script>
+<script src="js/rules.js?v=20261026"></script>
+<script src="js/scryfall.js?v=20261026"></script>
+<script src="js/xlsx-lite.js?v=20261026"></script>
+<script src="js/pipeline.js?v=20261026"></script>
+<script src="js/template.js?v=20261026"></script>
+<script src="js/app.js?v=20261026"></script>
 </body>
 </html>
