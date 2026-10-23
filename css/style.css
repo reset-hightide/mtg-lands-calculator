@@ -427,6 +427,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, label.sbtn-dark:fo
 .cmdcard img { display: block; width: 100%; height: auto; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; background: #1a1a1a; box-shadow: 0 0 0 2px var(--gold); }
 .cmdlabel { position: absolute; left: 50%; bottom: -22px; transform: translateX(-50%); white-space: nowrap; font: 700 11.5px var(--font); letter-spacing: .4px; text-transform: uppercase; color: var(--gold); }
 @media (max-width: 760px) { .cmdzone { margin-right: 0; width: 100%; justify-content: center; padding-bottom: 26px; } }
+/* com comandante, mão e comandante cabem na mesma linha (senão a mão caía para baixo e, ao jogar cartas, a linha encolhia e a caixa de estatísticas subia por cima dela) */
+@media (min-width: 761px) { .fanrow:has(.cmdzone:not(.hidden)), .fanrow:has(.cmdzone:not(.hidden)) .fan { --cw: clamp(88px, 12.2vw, 150px); } .fanrow:has(.cmdzone:not(.hidden)) { flex-wrap: nowrap; } }
+.fanrow { position: relative; z-index: 1; }
 
 
 /* ----- playtest em cima do site: grimório 1/4 na borda direita + cartas soltas por cima da página ----- */
