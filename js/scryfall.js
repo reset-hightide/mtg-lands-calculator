@@ -10,7 +10,7 @@
 
   const API = 'https://api.scryfall.com';
   const TTL_MS = 7 * 24 * 3600 * 1000;
-  const CACHE_KEY = 'mtg-lands:cards:v3';
+  const CACHE_KEY = 'mtg-lands:cards:v4';
   const mem = new Map();          // nome minúsculo -> carta enxuta
   let storeLoaded = false;
 
@@ -25,6 +25,7 @@
     const o = {
       name: c.name, cmc: c.cmc, type_line: c.type_line, oracle_text: c.oracle_text, layout: c.layout, rarity: c.rarity,
       colors: c.colors, color_identity: c.color_identity, keywords: c.keywords, mana_cost: c.mana_cost, produced_mana: c.produced_mana, set: c.set, collector_number: c.collector_number,
+      img: ((c.image_uris || (c.card_faces && c.card_faces[0] && c.card_faces[0].image_uris) || {}).normal) || null, uri: c.scryfall_uri,
     };
     if (c.card_faces) o.card_faces = c.card_faces.map(f => ({ name: f.name, type_line: f.type_line, oracle_text: f.oracle_text, colors: f.colors, mana_cost: f.mana_cost, produced_mana: f.produced_mana }));
     return o;

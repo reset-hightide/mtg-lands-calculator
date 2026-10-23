@@ -6,12 +6,13 @@
   const f2 = x => x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const f1 = x => x.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const num = x => (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : f1(x));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const COLOR_NAMES = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' };
   const frontCost = c => (c.card_faces && c.card_faces[0] ? c.card_faces[0].mana_cost : c.mana_cost) || '';
   const chipHtml = c => `${Mana.icon(c, 16)}${COLOR_NAMES[c]}`;
 
-  // mode 'paste': um deck, opções na bancada; mode 'excel': vários decks, ajustes por deck
-  const state = { decks: [], results: [], busy: false, mode: 'paste', colorsManual: '', lastText: null, timer: null };
+  // mode 'paste': um deck, opções nos Ajustes; mode 'excel': vários decks, ajustes por deck
+  const state = { decks: [], results: [], busy: false, mode: 'paste', colorsManual: '', lastText: null, timer: null, rolling: false, lastExample: -1, hands: [], handKey: '' };
 
   function status(msg, err, busy) { const s = $('status'); s.textContent = msg; s.className = 'status' + (err ? ' err' : '') + (busy ? ' busy' : ''); }
 
@@ -24,7 +25,7 @@
   $('btnTemplate').onclick = () => download(Template.buildTemplate(), 'Calculadora_Terrenos_Template.xlsx');
   $('btnDownload').onclick = () => download(Template.buildResults(state.results), 'Resultado_Terrenos.xlsx');
 
-  // ------------------------------------------------------------------ opções da bancada (modo colar lista)
+  // ------------------------------------------------------------------ ajustes (modo colar lista)
   document.querySelectorAll('#optColors .chip[data-c]').forEach(c => { c.innerHTML = chipHtml(c.dataset.c); });
   const pasteParams = () => ({ archetype: $('optArch').value, size: $('optSize').value, companion: $('optComp').value, colors: state.colorsManual });
 
@@ -33,9 +34,8 @@
     const box = $('detect');
     if (state.mode !== 'paste' || !state.results[0] || !state.results[0].ok) { box.classList.add('hidden'); return; }
     const r = state.results[0];
-    // o que o modo Auto decidiria, independente do que o usuário escolheu manualmente
-    const a = Pipeline.evaluateDeck({ ...state.decks[0], params: {} }, Scryfall.get);
-    const setAuto = (id, label) => { const o = $(id).querySelector('option[value="Auto"]'); o.textContent = label; };
+    const a = Pipeline.evaluateDeck({ ...state.decks[0], params: {} }, Scryfall.get);   // o que o Auto decidiria
+    const setAuto = (id, label) => { $(id).querySelector('option[value="Auto"]').textContent = label; };
     setAuto('optSize', `Auto (${a.size} cartas)`);
     setAuto('optArch', `Auto (${a.archetype})`);
     setAuto('optComp', `Auto (${a.companion ? 'Sim' : 'Não'})`);
@@ -44,6 +44,7 @@
     const cores = r.colorsList ? r.colorsList.split('').map(c => `${Mana.icon(c, 15)} ${COLOR_NAMES[c]}`).join(' ') : 'nenhuma';
     box.innerHTML = `<b>Detectado:</b> ${r.size} cartas (${esc(r.sizeSource)}) · arquétipo <b>${esc(r.archetype)}</b> (${esc(r.archetypeSource)}) · cores <b>${cores}</b> (${esc(r.colorsSource)}) · companion <b>${r.companion ? 'sim' : 'não'}</b>`;
     box.classList.remove('hidden');
+    $('detectBrief').textContent = `(${r.size} cartas · ${r.archetype} · ${r.colorsList || 'sem cor'} — automático)`;
   }
 
   // ------------------------------------------------------------------ entrada: colar lista
@@ -59,12 +60,8 @@
   /** Opção mudou: se o texto é o mesmo, recalcula na hora (sem rede); senão analisa de novo. */
   function optionChanged() {
     const sig = $('deckText').value + '\u0000' + $('deckName').value;
-    if (state.mode === 'paste' && state.decks.length && state.lastText === sig) {
-      state.decks[0].params = pasteParams();
-      recalc();
-    } else if ($('deckText').value.trim()) {
-      analyzePaste();
-    }
+    if (state.mode === 'paste' && state.decks.length && state.lastText === sig) { state.decks[0].params = pasteParams(); recalc(); }
+    else if ($('deckText').value.trim()) analyzePaste();
   }
   ['optSize', 'optArch', 'optComp'].forEach(id => $(id).addEventListener('change', optionChanged));
   $('deckName').addEventListener('change', optionChanged);
@@ -82,38 +79,40 @@
     optionChanged();
   });
   $('btnPaste').onclick = analyzePaste;
-  // colou a lista: calcula sozinho
-  $('deckText').addEventListener('paste', () => { clearTimeout(state.timer); state.timer = setTimeout(analyzePaste, 80); });
+  $('deckText').addEventListener('paste', () => { clearTimeout(state.timer); state.timer = setTimeout(analyzePaste, 80); });   // colou: calcula sozinho
   $('deckText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyzePaste(); });
   $('btnClear').onclick = () => {
     $('deckText').value = ''; $('deckName').value = ''; state.colorsManual = ''; state.lastText = null; state.decks = []; state.results = [];
-    $('results').classList.add('hidden'); $('detect').classList.add('hidden');
+    $('results').classList.add('hidden'); $('decks').innerHTML = ''; $('detect').classList.add('hidden'); $('detectBrief').textContent = '(tudo automático — só abra se quiser corrigir)';
     document.querySelectorAll('#optColors .chip[data-c]').forEach(c => c.classList.remove('on')); $('chipAuto').classList.add('on');
-    status('O resultado aparece sozinho quando você cola a lista.'); $('deckText').focus();
+    status('O resultado aparece sozinho quando você cola a lista.'); $('deckText').focus(); $('cardstage').classList.add('hidden');
   };
-  // sorteia um deck de exemplo: o dado (d20) rola pela tela, ricocheteia e cai num número que escolhe o deck
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // ------------------------------------------------------------------ sortear exemplo: a Roda da Fortuna gira e o símbolo escolhe o deck
   $('btnSample').onclick = async () => {
     if (state.rolling || state.busy) return;
     state.rolling = true;
     try {
-      const N = EXAMPLES.length;
-      let roll, idx;
-      do { roll = 1 + Math.floor(Math.random() * 20); idx = Math.min(N - 1, Math.floor((roll - 1) * N / 20)); } while (N > 1 && idx === state.lastExample);
+      const wheel = await Wheel.spin();
+      if (wheel.cancelled) return;
+      // vários decks por símbolo: sorteia entre eles, evitando repetir o último
+      let pool = EXAMPLES.map((e, i) => i).filter(i => EXAMPLES[i].wheel === wheel.symbol);
+      if (pool.length > 1) pool = pool.filter(i => i !== state.lastExample);
+      const idx = pool[Math.floor(Math.random() * pool.length)];
       state.lastExample = idx;
       const ex = EXAMPLES[idx];
-      const prefetch = Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção durante a animação
-      const die = await Dice.roll(roll);
-      die.say(`Você tirou ${roll}: ${ex.name}`);
-      await prefetch;
-      await sleep(950);
-      die.close();
+      wheel.say(ex.name);   // só o nome do deck sorteado
+      await Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção das cartas
+      await sleep(900);
+      wheel.close();
       $('deckName').value = ex.name;
       $('deckText').value = ExamplesText(ex, Scryfall.get);
       state.colorsManual = '';
       await analyzePaste();
     } finally { state.rolling = false; }
   };
+
+  $('newsDice').addEventListener('click', e => { e.preventDefault(); $('btnSample').click(); });
 
   // ------------------------------------------------------------------ entrada: planilha
   async function handleFile(file) {
@@ -146,7 +145,13 @@
       recalc();
       const g = $('globalWarnings'); g.textContent = warnings.join(' '); g.classList.toggle('hidden', !warnings.length);
       $('results').classList.remove('hidden');
-      status(mode === 'paste' ? 'Pronto. Mudou algo nas opções? O resultado atualiza sozinho.' : `${decks.length} deck(s) analisado(s).`);
+      if (!state.results.some(r => r.ok)) {
+        status('Não reconheci nenhuma carta. Confira se os nomes estão em inglês, um por linha (ex.: 4 Lightning Bolt).', true);
+        $('cardstage').classList.add('hidden');
+      } else {
+        status(mode === 'paste' ? 'Pronto! Mudou algo nos Ajustes? O resultado atualiza sozinho.' : `${decks.length} deck(s) analisado(s).`);
+        showHand(true);
+      }
       $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       status('Não consegui consultar o Scryfall: ' + (e.message || e) + ' Verifique sua conexão e tente de novo.', true);
@@ -159,21 +164,71 @@
     syncOptions();
   }
 
-  // ------------------------------------------------------------------ renderização
+  // ------------------------------------------------------------------ cartas com imagem (leque como o da home do Scryfall)
+  function fanHtml(cards) {
+    const n = cards.length, mid = (n - 1) / 2;
+    return cards.map((c, i) => {
+      const off = i - mid, rot = (off * 5).toFixed(1), y = Math.round(Math.abs(off) * Math.abs(off) * 3);
+      const style = `transform: translateY(${y}px) rotate(${rot}deg); --i: ${i}`;
+      const img = c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}" loading="lazy" width="488" height="680">` : `<div class="noimg">${esc(c.name)}</div>`;
+      const ext = c.uri ? `<a class="fx" href="${esc(c.uri)}" target="_blank" rel="noopener" title="Abrir ${esc(c.name)} no Scryfall">↗</a>` : '';
+      return `<div class="fc${c.isLand ? ' land' : ''}" style="${style}" role="button" tabindex="0" title="${esc(c.name)} — clique para comprar outra mão">${img}${ext}</div>`;
+    }).join('');
+  }
+
+  /** Cartas entram da direita para a esquerda, uma a uma (como carteando a mão), quando a seção aparece na tela. */
+  function dealAnimation() {
+    const fan = $('fan');
+    fan.classList.remove('deal');
+    void fan.offsetWidth;
+    const W = window.innerWidth;
+    fan.querySelectorAll('.fc').forEach(fc => fc.style.setProperty('--tx', Math.round(W - fc.getBoundingClientRect().left + 80) + 'px'));
+    const io = new IntersectionObserver((entries, ob) => { if (entries[0].isIntersecting) { fan.classList.add('deal'); ob.disconnect(); } }, { threshold: 0.3 });
+    io.observe(fan);
+  }
+
+  /** Mão inicial de 7 cartas do primeiro deck analisado, com contagem de terrenos, média das mãos e chances exatas. */
+  function showHand(newDeck) {
+    const r = state.results.find(x => x.ok);
+    if (!r) return;
+    const total = r.cards.reduce((a, c) => a + c.qty, 0);
+    const key = `${r.name}|${total}|${r.pureLands}`;
+    if (newDeck || key !== state.handKey) { state.hands = []; state.handKey = key; }
+    $('cardstage').classList.remove('hidden');
+    const { hand, lands } = Rules.drawHand(r.cards, 7);
+    state.hands.push(lands);
+    $('fanTitle').textContent = `Sua mão inicial${state.results.length > 1 ? ` (${r.name})` : ''}`;
+    $('fan').innerHTML = fanHtml(hand.map(h => ({ name: h.name, img: h.card.img, uri: h.card.uri, isLand: h.cls.isLand })));
+    dealAnimation();
+    const verdict = lands <= 1 ? 'poucos terrenos: mão arriscada (considere um mulligan)' : lands >= 5 ? 'muitos terrenos: mão pesada (considere um mulligan)' : 'quantidade de terrenos boa para manter';
+    $('fanInfo').textContent = `${lands} terreno(s) e ${7 - lands} mágica(s): ${verdict}.`;
+
+    // média das mãos já compradas x esperado
+    const n = state.hands.length, avg = state.hands.reduce((a, b) => a + b, 0) / n, exp = 7 * r.pureLands / total;
+    const chips = state.hands.slice(-12).map(k => `<span class="hchip ${k >= 2 && k <= 4 ? 'ok' : 'bad'}" title="${k} terreno(s)">${k}</span>`).join('');
+    $('handStats').innerHTML = `<span><b>${n}</b> mão(s) comprada(s)</span><span>média de <b>${f1(avg)}</b> terrenos <span class="muted-l">(esperado ${f1(exp)})</span></span><span class="hchips" title="terrenos em cada mão (verde = 2 a 4)">${chips}</span>`;
+
+    // chance exata de cada quantidade de terrenos na mão
+    const odds = Rules.handLandOdds(total, r.pureLands, 7), max = Math.max(...odds, 1e-9);
+    $('odds').innerHTML = odds.map((p, k) => `<div class="oc"><span class="op">${Math.round(p * 100)}%</span><div class="ob${k >= 2 && k <= 4 ? ' keep' : ''}${k === lands ? ' now' : ''}" style="height:${Math.max(3, Math.round(100 * p / max))}%"></div><span class="ol">${k}</span></div>`).join('');
+    const keepP = odds.slice(2, 5).reduce((a, b) => a + b, 0), lowP = odds[0] + odds[1], highP = odds.slice(5).reduce((a, b) => a + b, 0);
+    $('oddsNote').textContent = `Com ${r.pureLands} terrenos em ${total} cartas: ${Math.round(keepP * 100)}% de chance de vir 2 a 4 terrenos (mão boa de manter), ${Math.round(lowP * 100)}% de vir 0 ou 1 e ${Math.round(highP * 100)}% de vir 5 ou mais. A barra com contorno dourado é a mão que você acabou de comprar.`;
+  }
+  $('btnFan').onclick = () => showHand(false);
+  // clicar em qualquer carta da mão compra outra mão (o "↗" abre a carta no Scryfall)
+  $('fan').addEventListener('click', e => { if (e.target.closest('.fx')) return; if (e.target.closest('.fc')) showHand(false); });
+  $('fan').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('fc')) { e.preventDefault(); showHand(false); } });
+
+  // ------------------------------------------------------------------ resultado
   function sourceCard(x) {
     const pct = x.needed ? Math.min(100, Math.round(100 * x.current / x.needed)) : 100;
-    const faixa = x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? `${x.tableRange[0]}` : `${x.tableRange[0]}–${x.tableRange[1]}`) : null;
     const falta = x.needed - x.current;
     const st = x.current >= x.needed - 1e-9 ? '<span class="pos">suficiente</span>' : `<span class="neg">faltam ≈ ${num(falta)}</span>`;
-    const notes = [`Fórmula: ${x.byFormula} (${Math.round(x.share * 100)}% dos pips)`];
-    if (faixa) notes.push(`Tabela de ${x.multiPip >= 4 ? '4+' : x.multiPip} pips: ${faixa}`);
-    if (x.rampCredit) notes.push(`Ramp: −${f1(x.rampCredit)} → terrenos devem dar ${x.fromLands}`);
     return `<div class="src c${x.color}">
-      <div class="srchead">${Mana.icon(x.color, 30)}<b>${COLOR_NAMES[x.color]}</b><span class="muted small">${num(x.pips)} pips</span></div>
+      <div class="srchead">${Mana.icon(x.color, 30)}<b>${COLOR_NAMES[x.color]}</b></div>
       <div class="srcnum"><span class="n2">${x.needed}</span><span>fontes necessárias</span></div>
       <div class="bar2"><i style="width:${pct}%"></i></div>
       <p class="barlbl">Nos seus terrenos hoje: <b>${num(x.current)}</b> · ${st}</p>
-      <ul class="srcnotes">${notes.map(n => `<li>${n}</li>`).join('')}</ul>
     </div>`;
   }
 
@@ -186,6 +241,11 @@
     const sel = (key, opts, cur) => `<select data-i="${i}" data-k="${key}">${opts.map(([v, t]) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
     const auto = v => (v === '' || v == null || /^auto/i.test(String(v)));
     const archCur = auto(p.archetype) ? 'Auto' : r.archetype;
+    // seletor de arquétipo no próprio resultado: já vem preenchido (automático) e pode ser trocado; "automático" desfaz a troca
+    const autoArch = auto(p.archetype) ? r.archetype : Pipeline.evaluateDeck({ ...d, params: { ...p, archetype: 'Auto' } }, Scryfall.get).archetype;
+    const archSelect = `<select data-i="${i}" data-k="archetype" aria-label="Arquétipo do deck">${auto(p.archetype)
+      ? Rules.ARCHETYPES.map(a => a === r.archetype ? `<option value="Auto" selected>${a} (automático)</option>` : `<option value="${a}">${a}</option>`).join('')
+      : `<option value="Auto">↺ automático (${autoArch})</option>` + Rules.ARCHETYPES.map(a => `<option value="${a}"${a === r.archetype ? ' selected' : ''}>${a}</option>`).join('')}</select>`;
     const sizeCur = auto(p.size) ? 'Auto' : r.size;
     const compCur = auto(p.companion) ? 'Auto' : (r.companion ? 'Sim' : 'Não');
     const chips = 'WUBRG'.split('').map(c => `<span class="chip${r.colorsList.includes(c) ? ' on' : ''}" data-c="${c}" data-i="${i}" title="${COLOR_NAMES[c]}">${chipHtml(c)}</span>`).join('');
@@ -195,41 +255,63 @@
     const rows = flagged.map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="cost">${Mana.cost(frontCost(c.card), 15)}</td><td>${c.cls.draw ? '<span class="tag draw">compra barata</span>' : ''}${c.cls.ramp ? '<span class="tag ramp">aceleração barata</span>' : ''}${c.cls.mdfc ? `<span class="tag mdfc">MDFC ${c.cls.mdfc === 'mythic' ? 'mítico (0,74)' : '(0,38)'}</span>` : ''}</td><td>${c.cls.draw || c.cls.ramp ? `<input type="checkbox" checked data-i="${i}" data-x="${esc(c.name)}">` : ''}</td></tr>`).join('');
     const exRows = [...excluded].map(n => `<tr><td></td><td>${esc(n)}</td><td></td><td><span class="muted">fora da contagem</span></td><td><input type="checkbox" data-i="${i}" data-x="${esc(n)}"></td></tr>`).join('');
     const warn = r.warnings.length ? `<p class="warn">${r.warnings.map(esc).join('<br>')}</p>` : '';
+    const advice = Pipeline.adviceFor(r).map(a => `<li class="${a.kind === 'todo' ? 'todo-fix' : ''}">${esc(a.text)}</li>`).join('');
+    const pills = r.sources.rows.map(x => `<span class="pill">${Mana.icon(x.color, 26)}<b>${x.needed}</b><small>fontes de ${COLOR_NAMES[x.color].toLowerCase()}</small></span>`).join('');
+    const srcTable = r.sources.rows.map(x => {
+      const faixa = x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? `${x.tableRange[0]}` : `${x.tableRange[0]}–${x.tableRange[1]}`) + ` (${x.multiPip >= 4 ? '4+' : x.multiPip} pips)` : '–';
+      return `<tr><td>${Mana.icon(x.color, 16)} ${COLOR_NAMES[x.color]}</td><td class="num">${num(x.pips)}</td><td class="num">${Math.round(x.share * 100)}%</td><td class="num">${x.byFormula}</td><td class="num">${faixa}</td><td class="num"><b>${x.needed}</b></td><td class="num">${x.rampCredit ? f1(x.rampCredit) : '–'}</td><td class="num">${x.fromLands}</td><td class="num">${num(x.current)}</td></tr>`;
+    }).join('');
     const adjust = state.mode === 'excel' ? `
-      <details class="adjust"><summary>Ajustar arquétipo, tamanho, companion ou cores deste deck</summary>
+      <details class="more"><summary>Ajustar arquétipo, tamanho, companion ou cores deste deck <span class="hint">(tudo automático)</span></summary><div class="inner">
         <div class="grid">
           <div><label>Arquétipo <span class="muted">(${esc(r.archetypeSource)})</span></label>${sel('archetype', [['Auto', 'Auto'], ...Rules.ARCHETYPES.map(a => [a, a])], archCur)}</div>
           <div><label>Tamanho <span class="muted">(${esc(r.sizeSource)})</span></label>${sel('size', [['Auto', 'Auto'], [40, '40 cartas'], [60, '60 cartas'], [100, '100 cartas']], sizeCur)}</div>
           <div><label>Companion <span class="muted">(${esc(r.companionSource)})</span></label>${sel('companion', [['Auto', 'Auto'], ['Sim', 'Sim'], ['Não', 'Não']], compCur)}</div>
           <div><label>Cores <span class="muted">(${esc(r.colorsSource)})</span></label><div class="chips">${chips}<span class="chip" data-i="${i}" data-auto="1">Auto</span></div></div>
-        </div>
-      </details>` : '';
-    const verdict = `<div class="verdict"><div class="vt">Use <b>≈ ${r.rounded} terrenos</b> · ${r.sources.rows.map(x => `${Mana.icon(x.color, 22)}<b>${x.needed}</b> fontes de ${COLOR_NAMES[x.color].toLowerCase()}`).join(' · ')}</div>
-      <button class="ghost small copybtn" type="button" data-i="${i}">Copiar resumo</button></div>`;
+        </div></div></details>` : '';
     return `<article class="deck">
       <div class="deckhead"><h3>${esc(r.name)}</h3>
         <div class="meta">
           <span class="badge"><b>${r.mainTotal}</b> cartas</span>
-          <span class="badge">Arquétipo <b>${esc(r.archetype)}</b></span>
+          <label class="badge archpick" title="Estilo de jogo do deck. Já vem preenchido pelo site, mas você pode trocar: o número de terrenos é recalculado na hora.">Arquétipo ${archSelect}</label>
           <span class="badge">Cores ${pipsBadge}</span>
           <span class="badge">${r.pureLands} terrenos + ${f2(r.currentLands - r.pureLands)} de MDFC</span>
         </div></div>
-      ${verdict}
-      <div class="kpis">
-        <div class="kpi main"><span class="k">Terrenos recomendados</span><span class="v">${f2(r.lands)}</span><span class="s">≈ ${r.rounded} · faixa típica ${f1(r.low)} a ${f1(r.high)}</span></div>
-        <div class="kpi"><span class="k">Seu deck hoje</span><span class="v">${f2(r.currentLands)}</span><span class="s">${cmp}</span></div>
-        <div class="kpi"><span class="k">Karsten (referência)</span><span class="v">${f2(r.karsten)}</span><span class="s">modelo anterior</span></div>
-        <div class="kpi"><span class="k">CMC · compra · ramp</span><span class="v">${f2(r.cmc)}</span><span class="s">${r.draw} compra · ${r.ramp} aceleração</span></div>
+
+      <div class="answer">
+        <div class="big-n">${r.rounded}</div>
+        <div class="big-l"><b>terrenos recomendados</b>número exato do modelo: ${f2(r.lands)}</div>
+        <div class="srcpills">${pills}<button class="ghost small copybtn" type="button" data-i="${i}">Copiar resumo</button></div>
       </div>
       ${warn}
+
+      <h4>O que fazer agora</h4>
+      <ul class="todo">${advice}</ul>
+
       <h4>Fontes de mana por cor <span class="muted small">(para ${r.sources.lands} terrenos)</span></h4>
+      <p class="muted small" style="margin:2px 0 0">Fonte = terreno que produz aquela cor. Ex.: 17 fontes de azul quer dizer que 17 dos seus terrenos precisam gerar mana azul.</p>
       <div class="srcgrid">${r.sources.rows.map(sourceCard).join('')}</div>
-      <p class="muted small" style="margin-top:8px">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands contam como fonte das cores que podem buscar (Scalding Tarn = azul e vermelho; Evolving Wilds, que busca qualquer básico, = as cinco).</p>
+
+      <details class="more"><summary>Como calculamos as fontes <span class="hint">(fórmula e tabela por cor)</span></summary><div class="inner">
+        <table><thead><tr><th>Cor</th><th class="num">Pips</th><th class="num">% dos pips</th><th class="num">Fórmula</th><th class="num">Tabela (pips múltiplos)</th><th class="num">Necessárias</th><th class="num">Crédito de ramp</th><th class="num">Terrenos devem dar</th><th class="num">Hoje</th></tr></thead><tbody>${srcTable}</tbody></table>
+        <p class="muted small">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands (Scalding Tarn, Evolving Wilds…) puxam a cor que você precisar, então contam como fonte das cinco cores.</p>
+      </div></details>
+
+      <details class="more"><summary>Números do modelo <span class="hint">(faixa de erro, Karsten, CMC)</span></summary><div class="inner">
+        <div class="kpis">
+          <div class="kpi main"><span class="k">Terrenos recomendados</span><span class="v">${f2(r.lands)}</span><span class="s">≈ ${r.rounded} · faixa típica ${f1(r.low)} a ${f1(r.high)}</span></div>
+          <div class="kpi"><span class="k">Seu deck hoje</span><span class="v">${f2(r.currentLands)}</span><span class="s">${cmp}</span></div>
+          <div class="kpi"><span class="k">Karsten (referência)</span><span class="v">${f2(r.karsten)}</span><span class="s">modelo anterior</span></div>
+          <div class="kpi"><span class="k">CMC · compra · ramp</span><span class="v">${f2(r.cmc)}</span><span class="s">${r.draw} compra · ${r.ramp} aceleração</span></div>
+        </div></div></details>
+
       ${adjust}
-      <details><summary>Cartas que entram na conta (desmarque para tirar da contagem)</summary>
+
+      <details class="more"><summary>Cartas que entram na conta <span class="hint">(desmarque para tirar da contagem)</span></summary><div class="inner">
         <table><thead><tr><th>Qtd</th><th>Carta</th><th>Custo</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
-      </details>
-      <details><summary>Ver a conta</summary><pre>${esc(explain(r))}</pre></details>
+      </div></details>
+
+      <details class="more"><summary>Ver a conta <span class="hint">(passo a passo da fórmula)</span></summary><div class="inner"><pre>${esc(explain(r))}</pre></div></details>
     </article>`;
   }
 
@@ -245,9 +327,10 @@ terrenos = (${r.size}/60)·base − ${-M.draw}·${r.draw} − ${-M.ramp}·${r.ra
   }
 
   function render() {
-    const open = new Set([...document.querySelectorAll('#decks details[open]')].map(d => d.querySelector('summary').textContent));   // mantém "Cartas"/"Ver a conta" abertos
+    // mantém abertos os blocos que o usuário abriu
+    const open = new Set([...document.querySelectorAll('#decks details[open]')].map(d => d.querySelector('summary').firstChild.textContent.trim()));
     $('decks').innerHTML = state.results.map(deckHtml).join('');
-    document.querySelectorAll('#decks details').forEach(d => { if (open.has(d.querySelector('summary').textContent)) d.open = true; });
+    document.querySelectorAll('#decks details').forEach(d => { if (open.has(d.querySelector('summary').firstChild.textContent.trim())) d.open = true; });
   }
 
   // ------------------------------------------------------------------ ajustes por deck (modo Excel) e copiar resumo
@@ -255,7 +338,11 @@ terrenos = (${r.size}/60)·base − ${-M.draw}·${r.draw} − ${-M.ramp}·${r.ra
     const t = e.target, i = +t.dataset.i;
     if (Number.isNaN(i) || !state.decks[i]) return;
     const d = state.decks[i];
-    if (t.dataset.k) { d.params[t.dataset.k] = t.value; recalc(); }
+    if (t.dataset.k) {
+      d.params[t.dataset.k] = t.value;
+      if (state.mode === 'paste' && t.dataset.k === 'archetype') $('optArch').value = t.value;   // mantém o campo de Ajustes igual
+      recalc();
+    }
     else if (t.dataset.x !== undefined) {
       d.excluded = d.excluded || new Set();
       if (t.checked) d.excluded.delete(t.dataset.x); else d.excluded.add(t.dataset.x);
@@ -277,4 +364,6 @@ terrenos = (${r.size}/60)·base − ${-M.draw}·${r.draw} − ${-M.ramp}·${r.ra
     d.params.colors = 'WUBRG'.split('').filter(c => set.has(c)).join('') || 'nenhuma';
     recalc();
   });
+
+  if (window.matchMedia && matchMedia('(pointer: fine)').matches) $('deckText').focus();   // no computador já deixa o cursor na caixa; no celular não abre o teclado sozinho
 })();

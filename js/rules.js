@@ -242,6 +242,29 @@
       else if (target === 'companion') { add(side, name, q); companionSection = true; }
       else { add(main, name, q); seenMain = true; }
     }
+    if (!main.size && !side.size) return parseNamesOnly(text);
+    return { main, side, companionSection, ignored };
+  }
+
+  /** Lista sem quantidades (um nome de carta por linha): cada linha vale 1 cópia; repetidas somam. */
+  function parseNamesOnly(text) {
+    const main = new Map(), side = new Map();
+    const lines = String(text).split(/\r?\n/).map(l => l.replace(/\u00a0/g, ' ').trim()).filter(l => l && !/^\/\//.test(l));
+    const header = /^(deck|main|maindeck|main deck|sideboard|side|companion|commander|maybeboard)(\s*\(\d+\))?:?$/i;
+    const looksLikeName = l => l.length <= 60 && !/[.!?;]$/.test(l);
+    const cards = lines.filter(l => !header.test(l));
+    if (cards.length < 3 || cards.filter(looksLikeName).length / cards.length < 0.7) return { main, side, companionSection: false, ignored: 0 };
+    let section = 'main', companionSection = false, ignored = 0;
+    const add = (m, n) => m.set(n, (m.get(n) || 0) + 1);
+    for (const l of lines) {
+      const h = l.toLowerCase().replace(/:$/, '');
+      if (header.test(l)) { section = /^(sideboard|side)/.test(h) ? 'side' : /^companion/.test(h) ? 'companion' : /^maybeboard/.test(h) ? 'ignore' : 'main'; continue; }
+      if (!looksLikeName(l)) continue;
+      const { name, categories } = splitDecorations(l);
+      const target = sectionFromCategories(categories) || section;
+      if (target === 'ignore') { ignored++; continue; }
+      if (target === 'side') add(side, name); else if (target === 'companion') { add(side, name); companionSection = true; } else add(main, name);
+    }
     return { main, side, companionSection, ignored };
   }
 
@@ -303,21 +326,14 @@
     return card.produced_mana || (card.card_faces && card.card_faces[0] && card.card_faces[0].produced_mana) || [];
   }
 
-  const BASIC_TYPE_COLOR = { plains: 'W', island: 'U', swamp: 'B', mountain: 'R', forest: 'G' };
   /**
-   * Fetch land tipado (ex.: Scalding Tarn "Search your library for an Island or Mountain card"): conta como fonte das
-   * cores dos tipos que busca. Quem busca "qualquer terreno básico" (Evolving Wilds, Fabled Passage, Terramorphic Reverie)
-   * conta como fonte das cinco cores.
+   * Fetch land (Scalding Tarn, Verdant Catacombs, Evolving Wilds...): busca um terreno e puxa a cor que o deck precisar,
+   * então conta como fonte das cinco cores (decisão do autor do trabalho). Terreno que não busca nada devolve [].
    */
   function fetchColors(card) {
     const t = oracleFor(card).toLowerCase();
-    if (!/sacrifice/.test(t)) return [];
-    const m = t.match(/search your library for an? ([^.]*?) card/);
-    if (!m) return [];
-    if (/\bbasic land\b/.test(m[1])) return ['W', 'U', 'B', 'R', 'G'];   // "qualquer terreno básico": alcança as cinco cores
-    const out = [];
-    for (const [type, col] of Object.entries(BASIC_TYPE_COLOR)) if (new RegExp('\\b' + type + '\\b').test(m[1]) && !out.includes(col)) out.push(col);
-    return out;
+    if (!/sacrifice/.test(t) || !/search your library for an? [^.]*? card/.test(t)) return [];
+    return ['W', 'U', 'B', 'R', 'G'];
   }
 
   /** "Free spells" (Force of Will, Solitude...) não contam para a regra de pips múltiplos. */
@@ -336,7 +352,7 @@
     for (const c of cards) {
       if (c.cls.isLand) {
         const prod = producedOf(c.card);
-        const cols = prod.length ? prod : fetchColors(c.card);   // fetch land: cores dos tipos de terreno que ele busca
+        const cols = prod.length ? prod : fetchColors(c.card);   // fetch land: fonte das cinco cores
         for (const col of cols) if (col in landSources) landSources[col] += c.qty;
         continue;
       }
@@ -383,6 +399,36 @@
     });
   }
 
+  /**
+   * Mão inicial: n cartas sorteadas sem reposição do main deck (respeitando as quantidades).
+   * cards: [{ name, qty, cls, card }] (saída de analyzeEntries().cards). rng: () => [0,1) (injetável nos testes).
+   * -> { hand: [carta], lands: nº de terrenos na mão }
+   */
+  function drawHand(cards, n, rng) {
+    rng = rng || Math.random;
+    const pool = [];
+    for (const c of cards) for (let i = 0; i < c.qty; i++) pool.push(c);
+    n = Math.min(n == null ? 7 : n, pool.length);
+    for (let i = 0; i < n; i++) {   // Fisher–Yates parcial
+      const j = i + Math.floor(rng() * (pool.length - i));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const hand = pool.slice(0, n);
+    return { hand, lands: hand.filter(c => c.cls.isLand).length };
+  }
+
+  /**
+   * Chance exata (hipergeométrica) de cada quantidade de terrenos numa mão de n cartas, sem reposição.
+   * total = cartas do deck, lands = terrenos puros do deck. -> array [P(0), P(1), ..., P(n)]
+   */
+  function handLandOdds(total, lands, n) {
+    n = Math.min(n == null ? 7 : n, total);
+    const comb = (a, k) => { if (k < 0 || k > a) return 0; let r = 1; for (let i = 1; i <= k; i++) r = r * (a - k + i) / i; return r; };
+    const all = comb(total, n), out = [];
+    for (let k = 0; k <= n; k++) out.push(all ? comb(lands, k) * comb(total - lands, n - k) / all : 0);
+    return out;
+  }
+
   /** 40 / 60 / 100 pelo total de cartas do main deck. */
   function guessSize(total) { return total <= 50 ? 40 : total <= 80 ? 60 : 100; }
 
@@ -404,6 +450,6 @@
   return {
     ARCHETYPES, MODEL, MDFC_WEIGHT, SIZES, predict,
     classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, splitDecorations, sectionFromCategories, analyzeEntries, guessSize, normalizeColors,
-    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, fetchColors,
+    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, fetchColors, drawHand, handLandOdds,
   };
 });

@@ -129,9 +129,12 @@
     const ex = deck.excluded;
     const neutral = c => ({ ...c, oracle_text: '', card_faces: c.card_faces && c.card_faces.map(f => ({ ...f, oracle_text: '' })) });
     const lookup = n => { const c = getCard(n); return c && ex && ex.has(c.name) ? neutral(c) : c; };
+    const corrected = [];
+    const canon = x => String(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
     for (const [name, qty] of deck.main) {
       const card = lookup(name);
       if (!card) { missing.push(name); continue; }
+      if (canon(name) !== canon(card.name) && canon(name) !== canon(String(card.name).split(' // ')[0])) corrected.push(`“${name}” → “${card.name}”`);
       entries.push({ name, qty, card });
     }
     const agg = Rules.analyzeEntries(entries);
@@ -172,9 +175,10 @@
     if (!colors) warnings.push('Nenhuma cor detectada (deck incolor?). O modelo foi treinado com decks de pelo menos 1 cor.');
 
     if (!entries.length) {
-      return { name: deck.name, ok: false, error: 'Nenhuma carta do main deck foi reconhecida.', missing, warnings };
+      return { name: deck.name, ok: false, error: 'Nenhuma carta do main deck foi reconhecida. Confira se os nomes das cartas estão em inglês, um por linha (ex.: 4 Lightning Bolt).', missing, warnings };
     }
     if (deck.ignored) warnings.push(`${deck.ignored} carta(s) marcadas como Maybeboard/fora do deck foram ignoradas.`);
+    if (corrected.length) warnings.push(`Corrigimos ${corrected.length} nome(s) de carta: ${corrected.join(', ')}.`);
     if (missing.length) warnings.push(`${missing.length} carta(s) não encontrada(s) no Scryfall e ignoradas: ${missing.join(', ')}.`);
 
     const inputs = { cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, companion, colors: colors.length, archetype, size };
@@ -191,5 +195,27 @@
     };
   }
 
-  return { decksFromSheets, deckFromText, allNames, evaluateDeck, sectionOf, fold };
+  const COLOR_PT = { W: 'branco', U: 'azul', B: 'preto', R: 'vermelho', G: 'verde' };
+  const n1 = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
+
+  /**
+   * "O que fazer agora": frases curtas a partir do resultado de evaluateDeck.
+   * -> [{ kind: 'ok' | 'todo', text }]
+   */
+  function adviceFor(r) {
+    if (!r.ok) return [];
+    const out = [];
+    const d = r.delta, lands = `${n1(r.currentLands)} terrenos (MDFC ponderados)`;
+    if (Math.abs(d) < 0.5) out.push({ kind: 'ok', text: `Seu número de terrenos está alinhado com o modelo (você tem ${lands}; o modelo sugere ${n1(r.lands)}).` });
+    else if (d > 0) out.push({ kind: 'todo', text: `Adicione cerca de ${Math.max(1, Math.round(d))} terreno(s): o modelo sugere ${n1(r.lands)} e você tem ${lands}.` });
+    else out.push({ kind: 'todo', text: `Você pode cortar cerca de ${Math.max(1, Math.round(-d))} terreno(s): o modelo sugere ${n1(r.lands)} e você tem ${lands}.` });
+    for (const x of r.sources.rows) {
+      const cor = COLOR_PT[x.color], falta = x.needed - x.current;
+      if (falta > 0.5) out.push({ kind: 'todo', text: `Faltam ≈ ${Math.max(1, Math.round(falta))} fonte(s) de ${cor} (você tem ${n1(x.current)} de ${x.needed}). Troque terrenos que não produzem ${cor} por duals ou básicos de ${cor}.` });
+      else out.push({ kind: 'ok', text: `Fontes de ${cor}: suficientes (${n1(x.current)} de ${x.needed}).` });
+    }
+    return out;
+  }
+
+  return { decksFromSheets, deckFromText, allNames, evaluateDeck, adviceFor, sectionOf, fold };
 });
