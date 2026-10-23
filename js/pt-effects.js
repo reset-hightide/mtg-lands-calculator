@@ -195,6 +195,7 @@
   ];
   /** Texto de regras -> variação (o que a carta FAZ: comprar, anular, destruir, curar, criar fichas...). */
   const ORACLE_RULES = [
+    ['firering', /\{t\}: add (?:\{[wubrgc]\}){2,}/], ['onering', /ring tempts you|burden counter/],
     ['nullring', /counter target/], ['slash', /(?:destroy|exile) target (?:creature|permanent|artifact|enchantment|planeswalker)|\bfights?\b|first strike|double strike/],
     ['bolt', /deals? (?:\d+|x) damage/], ['heal', /lifelink|gains? (?:\d+|x) life|you gain life/],
     ['pops', /creates? (?:a|an|\d+|x|two|three|four|that many)[^.]*token/], ['coins', /treasure/],
@@ -205,6 +206,7 @@
     ['twinkle', /\badd \{/], ['time', /extra turn|additional combat/], ['mirror', /\bcopy\b|copies of|becomes a copy/],
     ['jelly', /return target [^.]*to (?:its|their) owner'?s? hand/], ['sparks', /\bhaste\b/], ['wither', /\binfect|\btoxic\b|poison counter|-\d+\/-\d+|-x\/-x/],
   ];
+  const STRONG = new Set(['firering', 'onering']);
   const typeKeys = typeLine => { const t = String(typeLine || '').toLowerCase(); return TYPE_RULES.filter(r => r[1].test(t)).map(r => r[0]); };
   const oracleKeys = oracle => { const t = String(oracle || '').toLowerCase(); return ORACLE_RULES.filter(r => r[1].test(t)).map(r => r[0]); };
   /** Hash estável do nome (FNV-1a): a mesma carta cai sempre na mesma variação. */
@@ -228,8 +230,10 @@
   }
   function castKeys(name, colors, typeLine, oracle, franchise) {
     const base = String(name || '').split(' // ')[0].toLowerCase(), keys = titleKeys(name).map(k => k.key), cs = colors && colors.length ? colors : ['C'];
-    let sig = keys.find(k => VARIANTS.has(k));
-    const fk = franchise && FRANCHISE_KEYS[franchise], flav = sig ? [] : flavorKeys(typeLine, oracle, base);   // sem palavra no título: franquia, tipo de criatura e texto de regras decidem
+    const strong = oracleKeys(oracle).find(k => STRONG.has(k));   // um anel de verdade (pelo texto de regras) vale mais que qualquer palavra do título
+    let sig = strong || keys.find(k => VARIANTS.has(k));
+    const fk = franchise && FRANCHISE_KEYS[franchise], flav = keys.find(k => VARIANTS.has(k)) && !strong ? [] : flavorKeys(typeLine, oracle, base);   // sem palavra no título: franquia, tipo de criatura e texto de regras decidem
+    if (strong && flav.indexOf(strong) > 0) { flav.splice(flav.indexOf(strong), 1); flav.unshift(strong); }
     if (!sig && fk) { sig = fk[hash(base + '#fr') % fk.length]; if (flav.length && sig !== flav[0]) flav.unshift(sig); }
     if (!sig) { if (flav.length) sig = flav[0]; else { const pool = POOLS[cs[hash(base) % cs.length]] || POOLS.C; sig = pool[hash(base + '#v') % pool.length]; } }
     const extra = keys.find(k => !VARIANTS.has(k)) || (flav.length > 1 && sig === flav[0] ? flav[1] : null);
@@ -466,7 +470,13 @@
     const PLUS = c => sv('0 0 20 20', `<path d="M8 1h4v7h7v4h-7v7H8v-7H1V8h7z" fill="${c}" stroke="#fff" stroke-width="1"/>`);
     const PAGE = sv('0 0 20 26', '<rect x="1" y="1" width="18" height="24" rx="2" fill="#f7f3e6" stroke="#9c9378"/><path d="M5 7h10M5 12h10M5 17h7" stroke="#9c9378" stroke-width="1.4"/>');
     const UPS = sv('0 0 20 26', '<path d="M2 12L10 4L18 12M2 22L10 14L18 22" fill="none" stroke="#7be08f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>');
-    const RING = sv('0 0 100 100', '<circle cx="50" cy="50" r="38" fill="none" stroke="#f2c230" stroke-width="13"/><circle cx="50" cy="50" r="38" fill="none" stroke="#fff3a8" stroke-width="3" opacity=".7"/><circle cx="50" cy="50" r="38" fill="none" stroke="#ff6a00" stroke-width="3" stroke-dasharray="4 5"/>', 'style="filter:drop-shadow(0 0 8px #ff8a1a)"');
+    const GLYPH = ['M0 -8V8M0 -8C7 -8 7 0 0 0', 'M0 -8V8M0 0C7 0 7 8 0 8', 'M0 -8V8M0 -8C6 -8 6 -1 0 -1M0 1C6 1 6 8 0 8', 'M0 -8V11M0 -8C7 -8 7 0 0 0', 'M0 -8V8M0 -8C-7 -8 -7 0 0 0M0 0C7 0 7 8 0 8', 'M0 -8V8M-3 -2H3M0 -8C5 -9 6 -4 0 -4'];
+    /** Aro de ouro (a banda), sem letras: o do Anel Solar. */
+    const BAND = '<circle cx="100" cy="100" r="62" fill="none" stroke="#f2c230" stroke-width="26"/><circle cx="100" cy="100" r="62" fill="none" stroke="#b9801a" stroke-width="22" opacity=".55"/><circle cx="100" cy="100" r="74" fill="none" stroke="#fff3a8" stroke-width="2" opacity=".8"/><circle cx="100" cy="100" r="50" fill="none" stroke="#fff3a8" stroke-width="1.6" opacity=".6"/>';
+    const RING = sv('0 0 200 200', BAND, 'style="filter:drop-shadow(0 0 10px #ff8a1a)"');
+    /** O Anel Único: o mesmo aro com a inscrição em letras élficas (escrita fantasiosa, traços de tengwar) que vão acendendo uma a uma ao redor. */
+    const ONERING = (() => { let g = ''; const N = 26; for (let i = 0; i < N; i++) g += `<g transform="rotate(${(i / N * 360).toFixed(1)} 100 100) translate(100 38)"><path d="${GLYPH[(i * 7 + 3) % 6]}" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="${(i * .04).toFixed(2)}s" dur=".25s" fill="freeze"/></path>${i % 3 === 0 ? '<circle cx="3" cy="-12" r="1.3" fill="#ffcf6a" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="' + (i * .04 + .1).toFixed(2) + 's" dur=".2s" fill="freeze"/></circle>' : ''}</g>`;
+      return sv('0 0 200 200', BAND.replace('stroke="#b9801a" stroke-width="22" opacity=".55"', 'stroke="#2a1604" stroke-width="20" opacity=".92"') + `<g fill="none" stroke="#ffcf6a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 3px #ff6a00)">${g}</g>`, 'style="filter:drop-shadow(0 0 10px #ff8a1a)"'); })();
     const EYE = sv('0 0 100 160', '<defs><radialGradient id="ptey" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffe27a"/><stop offset=".55" stop-color="#ff7a1a"/><stop offset="1" stop-color="#b3150a" stop-opacity="0"/></radialGradient></defs><ellipse cx="50" cy="80" rx="46" ry="76" fill="url(#ptey)"/><ellipse cx="50" cy="80" rx="8" ry="52" fill="#120400"/>', 'style="filter:drop-shadow(0 0 14px #ff4a00)"');
     const TARDIS = sv('0 0 40 64', '<rect x="4" y="6" width="32" height="56" fill="#0b3d91" stroke="#06255a" stroke-width="2"/><rect x="2" y="2" width="36" height="6" fill="#0b3d91" stroke="#06255a" stroke-width="2"/><g fill="#cfe4ff"><rect x="9" y="14" width="9" height="8"/><rect x="22" y="14" width="9" height="8"/><rect x="9" y="25" width="9" height="8"/><rect x="22" y="25" width="9" height="8"/></g><rect x="9" y="38" width="22" height="20" fill="#0a3580" stroke="#06255a"/>', 'style="filter:drop-shadow(0 0 6px #4aa8ff)"');
     const CRYSTAL = sv('0 0 40 56', '<path d="M20 1L37 18 20 55 3 18z" fill="#8fd8ff" stroke="#e6f7ff" stroke-width="1.6"/><path d="M20 1L28 18 20 55 12 18z" fill="#d9f2ff" opacity=".75"/>', 'style="filter:drop-shadow(0 0 10px #62c4ff)"');
@@ -493,7 +503,10 @@
       pops: (el, l) => spots(el, l, lv(l, 5, 9, 26), 'popc', () => dot(`border:3px solid ${pick(['#ffd34d', '#7be0ff', '#ff8fab', '#b6f5c3'])}`), 20, { dur: 700, s: 2.2 }),
       ups: (el, l) => fall(el, l, lv(l, 3, 6, 16), 'ups', () => UPS, 18, 1.3, { up: true, sway: 14, d0: 900, d1: 1400 }),
       // ---- franquias
-      onering: (el, l) => { const s = lv(l, 70, 120, 230), [x, y] = ctr(el, s); parts(x, y, 1, () => ['ring', RING, { dur: 1500, s: 1.15, rot: 200, w: s, h: s }]); if (l >= 2) E.twinkle(el, 1); if (l >= 3) fx.flash(true); },
+      onering: (el, l) => { const s = lv(l, 110, 180, 330), [x, y] = ctr(el, s); parts(x, y, 1, () => ['ring', ONERING, { dur: 2200, s: 1.1, rot: 160, w: s, h: s }]); if (l >= 2) E.twinkle(el, 1); if (l >= 3) fx.flash(true); },
+      firering: (el, l) => { const s = lv(l, 170, 260, 430), [cx, cy] = center(el), R = s * .36, n = lv(l, 12, 18, 30); parts(cx - s / 2, cy - s / 2, 1, () => ['ring', RING, { dur: 1700, s: 1.08, rot: 60, w: s, h: s }]);
+        for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, w = s * .09, f = spawn('ptflame', cx + Math.sin(a) * R - w / 2, cy - Math.cos(a) * R, '', 1500); f.style.width = w + 'px'; f.style.height = s * .2 * rr(.8, 1.3) + 'px'; f.style.rotate = (a * 180 / Math.PI).toFixed(0) + 'deg'; f.style.animationDelay = rr(0, 260) + 'ms'; }
+        if (l >= 2) E.embers(el, 1); if (l >= 3) fx.flash(true); },
       eye: (el, l) => { const w = lv(l, 44, 78, 170), h = w * 1.6, [x, y] = center(el), top = l >= 3 ? sy() + vh() * .06 : y - cardH(el) / 2 - h * .75, left = l >= 3 ? sx() + vw() / 2 - w / 2 : x - w / 2; if (l >= 3) overlay('ptdim', 2000); spawn('ptp eye', left, top, EYE, 1900).style.cssText += `width:${w}px;height:${h}px;opacity:1;animation:ptfadein 1.7s ease-in-out forwards`; if (l >= 3) fx.quake(); },
       beacon: (el, l) => { const n = lv(l, 3, 5, 9), a = area(el, l), base = l >= 3 ? a.y + a.h - 6 : a.y + a.h * .85; for (let i = 0; i < n; i++) { const f = spawn('ptflame', a.x + (n === 1 ? a.w / 2 : i * a.w / (n - 1)) - 20, base, '', 1500); f.style.width = lv(l, 28, 40, 56) + 'px'; f.style.height = lv(l, 52, 80, 120) + 'px'; f.style.animationDelay = i * lv(l, 140, 120, 150) + 'ms'; } },
       mithril: (el, l) => { fx.sheen(el); spots(el, l, lv(l, 6, 12, 30), 'twinkle', () => STAR(pick(['#e8f4ff', '#bcd8ff', '#ffffff'])), 16, { dur: 900, s: 1.4, rot: 90 }); },
