@@ -4,19 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Base de dados · Calculadora de Terrenos</title>
-<link rel="stylesheet" href="css/style.css?v=20261023">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232b253a'/%3E%3Ccircle cx='14' cy='32' r='5' fill='%23f8f2d0'/%3E%3Ccircle cx='23' cy='32' r='5' fill='%236fb6f0'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239a8dab'/%3E%3Ccircle cx='41' cy='32' r='5' fill='%23ee7b5f'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%236dc98a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css?v=20261024">
 </head>
 <body>
-<header class="top">
-  <div class="wrap">
-    <h1>Base de dados <span class="muted">· 39.287 decks vencedores</span></h1>
-    <p class="muted">Base usada para estimar o modelo (decks com mais vitórias que derrotas, MTG Melee, jul/2020 a jul/2022), enriquecida com arquétipo e número de cores.
-      Fonte original: <a href="https://www.kaggle.com/datasets/frankkarsten/mtg-lands" target="_blank" rel="noopener">Frank Karsten, Kaggle</a>.</p>
-    <nav><a href="index.html">Calculadora</a><a href="base.html" class="on">Base de dados</a><a href="sobre.html">Sobre o modelo</a></nav>
+<header class="topbar">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><span class="pips"><i class="w"></i><i class="u"></i><i class="b"></i><i class="r"></i><i class="g"></i></span>Calculadora de Terrenos</a>
+    <nav class="nav">
+      <a class="nbtn" href="index.html">Calculadora</a>
+      <a class="nbtn on" href="base.html">Base de dados</a>
+      <a class="nbtn" href="sobre.html">Sobre o modelo</a>
+      <a class="nbtn ghost" href="https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas" target="_blank" rel="noopener">Artigo ↗</a>
+      <a class="nbtn ghost" href="https://github.com/reset-hightide/mtg-lands-calculator" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
   </div>
+  <div class="colorbar"></div>
 </header>
+<div class="wrap pagehead">
+  <h1>Base de dados <span class="muted">· 39.287 decks vencedores</span></h1>
+  <p class="muted">Base usada para estimar o modelo (decks com mais vitórias que derrotas, MTG Melee, jul/2020 a jul/2022), enriquecida com arquétipo e número de cores.
+      Fonte original: <a href="https://www.kaggle.com/datasets/frankkarsten/mtg-lands" target="_blank" rel="noopener">Frank Karsten, Kaggle</a>.</p>
+</div>
 
-<main class="wrap">
+<main class="wrap page">
   <section class="panel">
     <div id="summary" class="grid"></div>
     <div class="filters" style="margin-top:14px">
@@ -40,7 +51,7 @@
     <p class="muted small">Colunas: <b>lands</b> = terrenos puros; <b>lands_mdfc</b> = terrenos + MDFC ponderados (0,38 não míticos / 0,74 míticos), variável-resposta do modelo; <b>cheap_draw / cheap_ramp</b> = compra/aceleração barata (CMC ≤ 2), regras do Karsten.</p>
   </section>
 </main>
-<footer class="wrap muted small">Os registros apontam para páginas públicas do MTG Melee; nomes de jogadores não foram incluídos.</footer>
-<script src="js/base.js?v=20261023"></script>
+<footer class="foot"><div class="wrap">Os registros apontam para páginas públicas do MTG Melee; nomes de jogadores não foram incluídos.</div></footer>
+<script src="js/base.js?v=20261024"></script>
 </body>
 </html>
