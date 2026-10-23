@@ -496,3 +496,21 @@ test('hipergeométrica: probabilidades somam 1 e a média bate com 7·L/N (bibli
   }
   near(R.handLandOdds(60, 24, 7)[0], (36 / 60) * (35 / 59) * (34 / 58) * (33 / 57) * (32 / 56) * (31 / 55) * (30 / 54), 1e-9);   // P(0 terrenos) à mão
 });
+
+
+test('free spells custam 0 na média de custo (CMC) e baixam os terrenos; sem free spell nada muda', () => {
+  const body = [entry(4, { name: 'Lightning Bolt', cmc: 1, mana_cost: '{R}' }), entry(4, { name: 'Rift Bolt', cmc: 3, mana_cost: '{2}{R}' }), entry(20, { name: 'Mountain', cmc: 0, type_line: 'Basic Land — Mountain', produced_mana: ['R'] })];
+  const fb = entry(4, { name: 'Fireblast', cmc: 6, mana_cost: '{4}{R}{R}', oracle_text: "You may sacrifice two Mountains rather than pay this spell's mana cost." });
+  const sem = R.analyzeEntries(body);
+  near(sem.cmc, (4 * 1 + 4 * 3) / 8);
+  const com = R.analyzeEntries([...body, fb]);
+  near(com.cmc, (4 * 1 + 4 * 3 + 4 * 0) / 12);       // Fireblast entra como custo 0, não 6
+  assert.equal(com.freeCount, 4); assert.equal(com.spells, 12);
+  const semFree = R.analyzeEntries([...body, entry(4, { name: 'Six Drop', cmc: 6, mana_cost: '{4}{R}{R}' })]);
+  near(semFree.cmc, (4 + 12 + 24) / 12);               // sem ser free spell, o 6 conta normalmente
+  // o usuário pode desfazer: Fireblast volta a custar 6
+  near(R.analyzeEntries([...body, fb], { free: new Map([['Fireblast', false]]) }).cmc, (4 + 12 + 24) / 12);
+  // menos CMC médio => menos terrenos no modelo
+  const inp = c => ({ cmc: c, draw: 0, ramp: 0, companion: false, colors: 1, archetype: 'Aggro', size: 60 });
+  assert.ok(R.predict(inp(com.cmc)).lands < R.predict(inp(semFree.cmc)).lands);
+});
