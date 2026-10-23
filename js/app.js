@@ -91,26 +91,28 @@
     document.querySelectorAll('#optColors .chip[data-c]').forEach(c => c.classList.remove('on')); $('chipAuto').classList.add('on');
     status('O resultado aparece sozinho quando você cola a lista.'); $('deckText').focus();
   };
-  $('btnSample').onclick = () => {
-    $('deckName').value = 'Izzet Tempo';
-    $('deckText').value = `4x Delver of Secrets // Insectile Aberration (isd) 51 [Threat]
-4x Brazen Borrower // Petty Theft (eld) 39 [Threat]
-4x Counterspell (mh2) 267 [Counter]
-4x Lightning Bolt (m10) 146 [Burn]
-4x Brainstorm (mmq) 61 [Draw]
-4x Murktide Regent (mh2) 52 [Threat]
-4x Dragon's Rage Channeler (mh2) 120 [Threat]
-2x Force of Will (all) 28 [Counter]
-4x Expressive Iteration (stx) 183 [Draw]
-2x Fire // Ice (mh2) 290 [Burn]
-8x Island (ana) 63 [Land]
-6x Mountain (ana) 65 [Land]
-4x Steam Vents (grn) 257 [Land]
-4x Spirebluff Canal (kld) 245 [Land]
-2x Scalding Tarn (mh2) 240 [Land]
-1x Shock (m21) 159 [Maybeboard{noDeck}{noPrice}]
-2x Negate (m20) 54 [Sideboard]`;
-    analyzePaste();
+  // sorteia um deck de exemplo: o dado (d20) rola pela tela, ricocheteia e cai num número que escolhe o deck
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  $('btnSample').onclick = async () => {
+    if (state.rolling || state.busy) return;
+    state.rolling = true;
+    try {
+      const N = EXAMPLES.length;
+      let roll, idx;
+      do { roll = 1 + Math.floor(Math.random() * 20); idx = Math.min(N - 1, Math.floor((roll - 1) * N / 20)); } while (N > 1 && idx === state.lastExample);
+      state.lastExample = idx;
+      const ex = EXAMPLES[idx];
+      const prefetch = Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção durante a animação
+      const die = await Dice.roll(roll);
+      die.say(`Você tirou ${roll}: ${ex.name}`);
+      await prefetch;
+      await sleep(950);
+      die.close();
+      $('deckName').value = ex.name;
+      $('deckText').value = ExamplesText(ex, Scryfall.get);
+      state.colorsManual = '';
+      await analyzePaste();
+    } finally { state.rolling = false; }
   };
 
   // ------------------------------------------------------------------ entrada: planilha
