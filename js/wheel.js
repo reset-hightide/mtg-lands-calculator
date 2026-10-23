@@ -17,8 +17,8 @@
   const CX = 380, CY = 204, R = 150, SCALE = 1.04, FEATHER = 1.5;
   const IMAGE_URL = 'img/cena.webp';
   const SPIN_MS = 2000;   // para em 2 segundos
-  // 6 voltas em 2 s numa curva suave: pico de ~41° por quadro (60 fps). Mais voltas que isso passam de 90° por quadro e o olho lê a roda como parada.
-  const TURNS = 6, EASE = 'cubic-bezier(0.3, 0.55, 0.3, 1)';
+  // 9 voltas em 2 s numa curva suave: pico de ~61° por quadro (60 fps), sem borrão. Mais voltas que isso passam de 90° por quadro e o olho lê a roda como parada.
+  const TURNS = 9, EASE = 'cubic-bezier(0.3, 0.55, 0.3, 1)';
 
   const randomIndex = n => root.crypto.getRandomValues(new Uint32Array(1))[0] % n;
 
@@ -127,8 +127,7 @@
       };
       const fallback = setTimeout(done, (reduce ? 120 : SPIN_MS + 200));
       disc.addEventListener('transitionend', done);
-      disc.style.transition = reduce ? 'none' : `transform ${SPIN_MS}ms ${EASE}, filter 500ms ease-out`;
-      if (!reduce) { disc.style.filter = 'blur(2.2px)'; setTimeout(() => { disc.style.filter = 'none'; }, 1100); }   // borrão de movimento no começo, que some quando desacelera
+      disc.style.transition = reduce ? 'none' : `transform ${SPIN_MS}ms ${EASE}`;
       requestAnimationFrame(() => requestAnimationFrame(() => { disc.style.transform = `rotate(${angle}deg) scale(${SCALE})`; }));
     });
   }

@@ -166,17 +166,73 @@
     for (const [key, re] of TITLE_RULES) { if (out.length >= 3) break; if (re.test(n)) out.push({ key }); }
     return out;
   }
+  /** Tipo de criatura (ou de permanente) da linha de tipo -> variação. Só o texto do tipo, nunca o nome da carta. */
+  const TYPE_RULES = [
+    ['blooddrops', /\b(vampire|lamia)\b/], ['bats', /\bbat\b/],
+    ['arrows', /\b(elf|elves|archer|scout|ranger|hunter)\b/],
+    ['paws', /\b(wolf|werewolf|cat|dog|bear|lion|rat|beast|hound|fox|mouse|boar|badger|ape|monkey|tiger|leopard|squirrel|rabbit|jackal|hyena|wolverine|mongoose)\b/],
+    ['fish', /\b(fish|merfolk|octopus|crab|shark|whale|squid|jellyfish|turtle|crocodile|seal|otter|nautilus|kraken|leviathan)\b/],
+    ['snake', /\b(snake|serpent|naga|basilisk|lizard|hydra)\b/],
+    ['birds', /\b(bird|griffin|harpy|sphinx|owl|eagle|hawk|crow|raven)\b/],
+    ['bones', /\b(zombie|skeleton|lich|mummy|ghoul|wight|skeletal)\b/],
+    ['swords', /\b(soldier|knight|warrior|samurai|gladiator|mercenary|berserker|paladin|rebel|monk)\b/],
+    ['runes', /\b(wizard|warlock|sorcerer|mage|shaman|advisor|aura|saga|class|planeswalker)\b/],
+    ['wisps', /\b(spirit|ghost|wraith|spectre|specter|shade|shadow|apparition|incarnation)\b/],
+    ['bugs', /\b(insect|ant|scorpion|beetle|wasp|bee|moth|worm|locust|leech|centipede)\b/],
+    ['twinkle', /\b(fairy|faerie|pixie|sprite|unicorn|pegasus|nymph)\b/],
+    ['notes', /\b(bard|minstrel|satyr|siren|performer)\b/],
+    ['coins', /\b(pirate|merchant|treasure|noble)\b/],
+    ['slash', /\b(rogue|assassin|ninja|cutthroat|thief)\b/],
+    ['earth', /\b(dinosaur|giant|titan|elephant|rhino|ogre|troll|cyclops|juggernaut|behemoth|minotaur)\b/],
+    ['gears', /\b(golem|construct|robot|thopter|servo|myr|dwarf|artificer|vehicle|gnome|cogwork)\b/],
+    ['metal', /\b(equipment|fortification)\b/],
+    ['feathers', /\b(angel|cherub|seraph)\b/], ['divine', /\b(god|avatar|archon|demigod|deity)\b/],
+    ['embers', /\b(demon|devil|imp|efreet|hellion|phoenix)\b/], ['breath', /\b(dragon|drake|wyvern|dracolich)\b/],
+    ['ink', /\b(phyrexian)\b/], ['tendrils', /\b(horror|nightmare)\b/], ['void', /\b(eldrazi|drone|spawn)\b/],
+    ['mirror', /\b(shapeshifter|changeling|doppelganger|clone)\b/], ['mist', /\b(illusion)\b/], ['jelly', /\b(ooze|slime|blob|jelly)\b/],
+    ['web', /\b(spider|arachnid)\b/], ['roots', /\b(treefolk|ent|tree|dryad)\b/], ['vines', /\b(druid|plant)\b/], ['spores', /\b(fungus|saproling|mushroom|myconid)\b/],
+    ['heal', /\b(cleric|healer|priest)\b/], ['dome', /\b(wall|guardian|sentinel)\b/], ['pops', /\b(goblin|kobold|gremlin|homunculus)\b/], ['frost', /\b(yeti)\b/],
+  ];
+  /** Texto de regras -> variação (o que a carta FAZ: comprar, anular, destruir, curar, criar fichas...). */
+  const ORACLE_RULES = [
+    ['nullring', /counter target/], ['slash', /(?:destroy|exile) target (?:creature|permanent|artifact|enchantment|planeswalker)|\bfights?\b|first strike|double strike/],
+    ['bolt', /deals? (?:\d+|x) damage/], ['heal', /lifelink|gains? (?:\d+|x) life|you gain life/],
+    ['pops', /creates? (?:a|an|\d+|x|two|three|four|that many)[^.]*token/], ['coins', /treasure/],
+    ['pages', /draws? (?:a|an|two|three|four|x|\d+|that many) cards?|search your library|\bdiscards?\b/],
+    ['wisps', /\bscry \d|\bsurveil|look at the top|reveal the top/], ['bones', /graveyard|deathtouch|\bdies\b/],
+    ['ups', /\+\d+\/\+\d+|\+1\/\+1 counter|proliferate/], ['dome', /hexproof|indestructible|protection from|\bward\b|regenerate|vigilance|\bdefender\b/],
+    ['birds', /\bflying\b/], ['earth', /\btrample\b/], ['frost', /\btap target|doesn't untap|don't untap/],
+    ['twinkle', /\badd \{/], ['time', /extra turn|additional combat/], ['mirror', /\bcopy\b|copies of|becomes a copy/],
+    ['jelly', /return target [^.]*to (?:its|their) owner'?s? hand/], ['sparks', /\bhaste\b/], ['wither', /\binfect|\btoxic\b|poison counter|-\d+\/-\d+|-x\/-x/],
+  ];
+  const typeKeys = typeLine => { const t = String(typeLine || '').toLowerCase(); return TYPE_RULES.filter(r => r[1].test(t)).map(r => r[0]); };
+  const oracleKeys = oracle => { const t = String(oracle || '').toLowerCase(); return ORACLE_RULES.filter(r => r[1].test(t)).map(r => r[0]); };
   /** Hash estável do nome (FNV-1a): a mesma carta cai sempre na mesma variação. */
   function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   /**
    * Efeitos ao jogar a carta: [variação, extra?]. A variação vem da palavra do título (se houver) ou do hash do nome dentro da
    * piscina da cor da carta (multicolor: o hash também escolhe a cor). `extra` é um efeito global do título (gelo, cratera, disco...).
    */
-  function castKeys(name, colors) {
+  function flavorKeys(typeLine, oracle, seed) {
+    const all = [...new Set([...typeKeys(typeLine), ...oracleKeys(oracle)])]; if (!all.length) return all;
+    const s = hash(seed + '#f') % all.length; return all.slice(s).concat(all.slice(0, s));
+  }
+  /** Franquias crossover (Universes Beyond), pelo código da edição que o Scryfall informa -> tema. Cada tema tem a sua própria piscina de efeitos. */
+  const FRANCHISE_SETS = { ltr: 'lotr', ltc: 'lotr', pltr: 'lotr', who: 'who', pwho: 'who', '40k': 'wh40k', pip: 'fallout', fin: 'ff', fic: 'ff', spm: 'spidey', tla: 'avatar' };
+  const FRANCHISE_KEYS = { lotr: ['onering', 'eye', 'beacon', 'mithril'], who: ['tardis', 'whirlpool'], wh40k: ['tracers', 'warp'], fallout: ['spores', 'sparks', 'blast'], ff: ['crystal', 'twinkle', 'bolt'], spidey: ['web', 'web', 'jelly'], avatar: ['fire', 'whirlpool', 'earth', 'leafstorm'] };
+  const franchiseOf = set => FRANCHISE_SETS[String(set || '').toLowerCase()] || null;
+  /** Franquia dominante do baralho: a que tem pelo menos 20% das cartas (então as cartas de outras edições do baralho também entram na brincadeira, de vez em quando). */
+  function deckFranchise(sets) {
+    const cnt = {}; let n = 0; for (const s of sets) { n++; const f = franchiseOf(s); if (f) cnt[f] = (cnt[f] || 0) + 1; }
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; return best && n && best[1] / n >= 0.2 ? best[0] : null;
+  }
+  function castKeys(name, colors, typeLine, oracle, franchise) {
     const base = String(name || '').split(' // ')[0].toLowerCase(), keys = titleKeys(name).map(k => k.key), cs = colors && colors.length ? colors : ['C'];
     let sig = keys.find(k => VARIANTS.has(k));
-    if (!sig) { const pool = POOLS[cs[hash(base) % cs.length]] || POOLS.C; sig = pool[hash(base + '#v') % pool.length]; }
-    const extra = keys.find(k => !VARIANTS.has(k));
+    const fk = franchise && FRANCHISE_KEYS[franchise], flav = sig ? [] : flavorKeys(typeLine, oracle, base);   // sem palavra no título: franquia, tipo de criatura e texto de regras decidem
+    if (!sig && fk) { sig = fk[hash(base + '#fr') % fk.length]; if (flav.length && sig !== flav[0]) flav.unshift(sig); }
+    if (!sig) { if (flav.length) sig = flav[0]; else { const pool = POOLS[cs[hash(base) % cs.length]] || POOLS.C; sig = pool[hash(base + '#v') % pool.length]; } }
+    const extra = keys.find(k => !VARIANTS.has(k)) || (flav.length > 1 && sig === flav[0] ? flav[1] : null);
     return extra ? [sig, extra] : [sig];
   }
 
@@ -382,12 +438,76 @@
       rainbow: el => once(el, 'fx-rainbow', 1700),
       storm: (el, l) => { if (l < 3) return E.rain(el, l); const o = overlay('ptrain', 3100); for (let i = 0; i < 70; i++) { const d = document.createElement('i'); d.style.left = rr(0, 100) + '%'; d.style.animationDelay = rr(0, 1.6) + 's'; d.style.animationDuration = rr(.45, .8) + 's'; d.style.height = rr(14, 30) + 'px'; o.appendChild(d); } later(() => { fx.flash(); fx.quake(); }, 350); },
     };
+    // ---- variedade por tipo de criatura, texto de regras e franquia (l1 pequeno e local, l2 médio, l3 a tela toda)
+    const area = (el, l) => { const [x, y] = center(el); return l >= 3 ? { x: sx(), y: sy(), w: vw(), h: vh() } : { x: x - lv(l, 90, 180, 0), y: y - lv(l, 80, 130, 0), w: lv(l, 180, 360, 0), h: lv(l, 160, 260, 0) }; };
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const sv = (vb, inner, extra) => `<svg viewBox="${vb}" width="100%" height="100%" ${extra || ''}>${inner}</svg>`;
+    const flip = (h, d) => d < 0 ? `<div style="width:100%;height:100%;transform:scaleX(-1)">${h}</div>` : h;
+    const dot = css => `<i style="display:block;width:100%;height:100%;border-radius:50%;${css}"></i>`;
+    /** Objetos que cruzam a área na horizontal (flechas, peixes, pássaros...). */
+    const fly = (el, l, n, cls, html, w, ratio, o = {}) => { const a = area(el, l); parts(a.x, a.y, n, i => { const d = Math.random() < .5 ? 1 : -1, ww = w * rr(.85, 1.2); return [cls, flip(html(i), d), { x: d > 0 ? -ww : a.w, y: rr(0, a.h), dx: d * (a.w + ww), dy: rr(-(o.dy || 0), o.dy || 0) + (o.rise || 0), dur: rr(o.d0 || 700, o.d1 || 1100), delay: rr(0, 450), w: ww, h: ww * ratio, s: 1 }]; }); };
+    /** Objetos que caem (ou sobem, com o.up) sobre a área (gotas, ossos, moedas, notas...). */
+    const fall = (el, l, n, cls, html, w, ratio, o = {}) => { const a = area(el, l), dist = l >= 3 ? a.h + 50 : lv(l, 150, 220, 0); parts(a.x, o.up ? a.y + a.h : a.y - 30, n, i => { const ww = w * rr(.8, 1.2); return [cls, html(i), { x: rr(0, a.w), dx: rr(-(o.sway || 0), o.sway || 0), dy: o.up ? -dist : dist, rot: rr(-(o.rot || 0), o.rot || 0), s: 1, dur: rr(o.d0 || 900, o.d1 || 1500), delay: rr(0, 500), w: ww, h: ww * ratio }]; }); };
+    /** Marcas que surgem no lugar e somem (brilhos, pegadas, estouros). */
+    const spots = (el, l, n, cls, html, w, o = {}) => { const a = area(el, l); parts(a.x, a.y, n, i => { const ww = w * rr(.8, 1.25); return [cls, html(i), { x: o.line ? a.w * i / Math.max(1, n - 1) : rr(0, a.w), y: o.line ? a.h * (.5 + (i % 2 ? .16 : -.16)) : rr(0, a.h), dx: 0, rot: o.rot ? rr(-o.rot, o.rot) : 0, s: o.s || 1.1, dur: o.dur || 800, delay: o.line ? i * (o.gap || 110) : rr(0, 500), w: ww, h: ww * (o.ratio || 1) }]; }); };
+    const DROP = c => sv('0 0 16 24', `<path d="M8 1C8 1 1 11 1 16a7 7 0 0 0 14 0C15 11 8 1 8 1z" fill="${c}"/>`);
+    const ARROW = sv('0 0 60 8', '<path d="M2 4H52" stroke="#a9744a" stroke-width="2"/><path d="M52 .5L60 4L52 7.5z" fill="#dfe6ee"/><path d="M2 4L8 .5M2 4L8 7.5M7 4L13 .5M7 4L13 7.5" stroke="#6bd06b" stroke-width="1.5" fill="none"/>');
+    const PAW = sv('0 0 24 24', '<g fill="#f1d6b0" stroke="#5a3d1e" stroke-width="1"><ellipse cx="12" cy="16" rx="6" ry="5"/><ellipse cx="5" cy="9" rx="2.4" ry="3"/><ellipse cx="10" cy="5" rx="2.4" ry="3.2"/><ellipse cx="15" cy="5" rx="2.4" ry="3.2"/><ellipse cx="20" cy="9" rx="2.4" ry="3"/></g>');
+    const FISH = c => sv('0 0 40 20', `<path d="M2 10C10 1 24 1 31 10 24 19 10 19 2 10z" fill="${c}"/><path d="M29 10L39 3V17z" fill="${c}"/><circle cx="9" cy="8" r="1.6" fill="#10202c"/>`);
+    const BIRD = sv('0 0 30 14', '<path d="M1 12Q8 0 15 9Q22 0 29 12" fill="none" stroke="#fff" stroke-width="5" opacity=".55" stroke-linecap="round"/><path d="M1 12Q8 0 15 9Q22 0 29 12" fill="none" stroke="#1b2430" stroke-width="2.6" stroke-linecap="round"/>');
+    const BONE = sv('0 0 40 14', '<g fill="#f2ecd8" stroke="#8a8266" stroke-width="1"><rect x="6" y="4.5" width="28" height="5" rx="2"/><circle cx="5" cy="4" r="3.4"/><circle cx="5" cy="10" r="3.4"/><circle cx="35" cy="4" r="3.4"/><circle cx="35" cy="10" r="3.4"/></g>');
+    const BLADE = '<path d="M32 4V44" stroke="#e8eef5" stroke-width="5" stroke-linecap="round"/><path d="M32 4V44" stroke="#9fb0c4" stroke-width="1.5"/><path d="M22 46H42" stroke="#d9a441" stroke-width="5" stroke-linecap="round"/><path d="M32 46V58" stroke="#7a4b2a" stroke-width="5" stroke-linecap="round"/>';
+    const SWORDS = sv('0 0 64 64', `<g transform="rotate(45 32 32)">${BLADE}</g><g transform="rotate(-45 32 32)">${BLADE}</g>`, 'style="filter:drop-shadow(0 0 5px #bcd4ff)"');
+    const RUNES = sv('0 0 100 100', '<g fill="none" stroke="#c9a8ff" stroke-width="1.6"><circle cx="50" cy="50" r="46"/><circle cx="50" cy="50" r="38" stroke-dasharray="3 5"/><path d="M50 8L87 72H13z"/><path d="M50 92L13 28H87z"/></g>', 'style="filter:drop-shadow(0 0 5px #8f5bff)"');
+    const STAR = c => sv('0 0 24 24', `<path d="M12 0L14.6 9.4L24 12L14.6 14.6L12 24L9.4 14.6L0 12L9.4 9.4z" fill="${c}"/>`, 'style="filter:drop-shadow(0 0 4px #ffe58a)"');
+    const NOTE = c => sv('0 0 20 28', `<ellipse cx="6" cy="22" rx="5" ry="4" fill="${c}"/><path d="M10.5 21V3Q17 5 17 12" fill="none" stroke="${c}" stroke-width="2.2"/>`);
+    const COIN = sv('0 0 20 20', '<circle cx="10" cy="10" r="9" fill="#f5c542" stroke="#b8861b" stroke-width="1.4"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#b8861b" stroke-width="1.2"/>');
+    const NULLR = sv('0 0 100 100', '<circle cx="50" cy="50" r="42" fill="none" stroke="#ff5a7a" stroke-width="9"/><path d="M20 80L80 20" stroke="#ff5a7a" stroke-width="9" stroke-linecap="round"/>', 'style="filter:drop-shadow(0 0 6px #ff2d55)"');
+    const PLUS = c => sv('0 0 20 20', `<path d="M8 1h4v7h7v4h-7v7H8v-7H1V8h7z" fill="${c}" stroke="#fff" stroke-width="1"/>`);
+    const PAGE = sv('0 0 20 26', '<rect x="1" y="1" width="18" height="24" rx="2" fill="#f7f3e6" stroke="#9c9378"/><path d="M5 7h10M5 12h10M5 17h7" stroke="#9c9378" stroke-width="1.4"/>');
+    const UPS = sv('0 0 20 26', '<path d="M2 12L10 4L18 12M2 22L10 14L18 22" fill="none" stroke="#7be08f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>');
+    const RING = sv('0 0 100 100', '<circle cx="50" cy="50" r="38" fill="none" stroke="#f2c230" stroke-width="13"/><circle cx="50" cy="50" r="38" fill="none" stroke="#fff3a8" stroke-width="3" opacity=".7"/><circle cx="50" cy="50" r="38" fill="none" stroke="#ff6a00" stroke-width="3" stroke-dasharray="4 5"/>', 'style="filter:drop-shadow(0 0 8px #ff8a1a)"');
+    const EYE = sv('0 0 100 160', '<defs><radialGradient id="ptey" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffe27a"/><stop offset=".55" stop-color="#ff7a1a"/><stop offset="1" stop-color="#b3150a" stop-opacity="0"/></radialGradient></defs><ellipse cx="50" cy="80" rx="46" ry="76" fill="url(#ptey)"/><ellipse cx="50" cy="80" rx="8" ry="52" fill="#120400"/>', 'style="filter:drop-shadow(0 0 14px #ff4a00)"');
+    const TARDIS = sv('0 0 40 64', '<rect x="4" y="6" width="32" height="56" fill="#0b3d91" stroke="#06255a" stroke-width="2"/><rect x="2" y="2" width="36" height="6" fill="#0b3d91" stroke="#06255a" stroke-width="2"/><g fill="#cfe4ff"><rect x="9" y="14" width="9" height="8"/><rect x="22" y="14" width="9" height="8"/><rect x="9" y="25" width="9" height="8"/><rect x="22" y="25" width="9" height="8"/></g><rect x="9" y="38" width="22" height="20" fill="#0a3580" stroke="#06255a"/>', 'style="filter:drop-shadow(0 0 6px #4aa8ff)"');
+    const CRYSTAL = sv('0 0 40 56', '<path d="M20 1L37 18 20 55 3 18z" fill="#8fd8ff" stroke="#e6f7ff" stroke-width="1.6"/><path d="M20 1L28 18 20 55 12 18z" fill="#d9f2ff" opacity=".75"/>', 'style="filter:drop-shadow(0 0 10px #62c4ff)"');
+    const ctr = (el, w) => { const [x, y] = center(el); return [x - w / 2, y - w / 2]; };
+    Object.assign(E, {
+      blooddrops: (el, l) => fall(el, l, lv(l, 6, 12, 28), 'drop', () => DROP(pick(['#b3122a', '#d11a35', '#7d0a1d'])), lv(l, 12, 16, 20), 1.5, { d0: 700, d1: 1200 }),
+      arrows: (el, l) => fly(el, l, lv(l, 3, 7, 16), 'arrow', () => ARROW, lv(l, 44, 56, 64), .14, { d0: 380, d1: 650, dy: 12 }),
+      paws: (el, l) => spots(el, l, lv(l, 5, 8, 16), 'paw', () => PAW, lv(l, 18, 22, 28), { line: true, gap: 100, dur: 900, s: 1 }),
+      fish: (el, l) => fly(el, l, lv(l, 3, 6, 14), 'fish', () => FISH(pick(['#ff9f43', '#4fc3f7', '#ffd166', '#a29bfe'])), lv(l, 30, 40, 52), .5, { d0: 1100, d1: 1700, dy: 24 }),
+      birds: (el, l) => fly(el, l, lv(l, 3, 5, 12), 'bird', () => BIRD, lv(l, 28, 36, 48), .47, { d0: 1000, d1: 1600, dy: 12, rise: -50 }),
+      bones: (el, l) => fall(el, l, lv(l, 4, 7, 18), 'bone', () => BONE, 24, .35, { rot: 360, sway: 30, d0: 900, d1: 1500 }),
+      swords: (el, l) => { const [x, y] = center(el), s = lv(l, 64, 100, 150); parts(x - s / 2, y - s / 2, 1, () => ['sword', SWORDS, { dur: 900, s: 1.15, w: s, h: s }]); if (l >= 2) fx.sheen(el); if (l >= 3) { fx.flash(true); fx.quake(); } },
+      runes: (el, l) => { const s = l >= 3 ? Math.min(vw(), vh()) * .8 : lv(l, 150, 240, 0), [x, y] = ctr(el, s); parts(x, y, 1, () => ['rune', RUNES, { dur: 1500, s: 1.1, rot: 140, w: s, h: s }]); if (l >= 2) parts(x + s * .2, y + s * .2, 1, () => ['rune', RUNES, { dur: 1500, s: 1.1, rot: -180, w: s * .6, h: s * .6, delay: 120 }]); if (l >= 3) fx.flash(); },
+      wisps: (el, l) => fall(el, l, lv(l, 5, 9, 22), 'wisp', () => dot('background:radial-gradient(circle,#fff,rgba(150,230,255,.75) 45%,rgba(150,230,255,0) 70%);box-shadow:0 0 10px #aeeaff'), 16, 1, { up: true, sway: 40, d0: 1300, d1: 2000 }),
+      bugs: (el, l) => { const a = area(el, l), k = lv(l, 60, 110, 200); parts(a.x, a.y, lv(l, 8, 16, 40), () => ['bug', dot('background:#1d1d1d;box-shadow:0 0 0 1px #8a8a8a'), { x: rr(0, a.w), y: rr(0, a.h), dx: rr(-k, k), dy: rr(-k, k), s: 1, dur: rr(700, 1100), delay: rr(0, 300), w: rr(5, 9) }]); },
+      twinkle: (el, l) => spots(el, l, lv(l, 6, 12, 36), 'twinkle', () => STAR(pick(['#fff3a8', '#ffffff', '#ffd34d', '#bfe9ff'])), 18, { dur: 900, s: 1.5, rot: 90 }),
+      notes: (el, l) => fall(el, l, lv(l, 4, 8, 20), 'note', () => NOTE(pick(['#ffd34d', '#7be0ff', '#ff8fab', '#b6f5c3'])), 18, 1.4, { up: true, sway: 50, d0: 1200, d1: 1900 }),
+      coins: (el, l) => fall(el, l, lv(l, 5, 10, 26), 'coin', () => COIN, 18, 1, { rot: 720, sway: 20, d0: 800, d1: 1200 }),
+      snake: (el, l) => { const n = lv(l, 1, 2, 3), len = l >= 3 ? vw() : lv(l, 170, 300, 0), W = Math.round(len) + 40, H = 60, [x, y] = center(el); for (let k = 0; k < n; k++) { let d = ''; for (let i = 0; i <= 28; i++) d += (i ? ' L' : 'M') + (i * W / 28).toFixed(0) + ' ' + (H / 2 + Math.sin(i * .8 + k * 2) * 16).toFixed(1);
+          spawn('pttendl', l >= 3 ? sx() : x - W / 2, l >= 3 ? sy() + rr(.2, .8) * vh() : y + (k - (n - 1) / 2) * 34 - H / 2, `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="none" stroke="#3f8f3a" stroke-width="9" stroke-linecap="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"><animate attributeName="stroke-dashoffset" from="1" to="0" dur=".8s" fill="freeze"/></path><path d="${d}" fill="none" stroke="#a6e07a" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"/></svg>`, 1700); } },
+      nullring: (el, l) => { const s = lv(l, 90, 140, 300), [x, y] = ctr(el, s); parts(x, y, 1, () => ['nullr', NULLR, { dur: 900, s: 1.2, w: s, h: s }]); if (l >= 2) { const [cx, cy] = center(el), r = spawn('ptripple force', cx, cy, '', 900); r.style.borderColor = '#ff6b8a'; } if (l >= 3) { fx.flash(); fx.quake(); } },
+      heal: (el, l) => fall(el, l, lv(l, 4, 8, 20), 'plus', () => PLUS(pick(['#7be08f', '#b6f5c3', '#9be15d'])), 16, 1, { up: true, sway: 30, d0: 1100, d1: 1700 }),
+      pages: (el, l) => fall(el, l, lv(l, 4, 7, 18), 'page', () => PAGE, 16, 1.3, { up: true, sway: 60, rot: 60, d0: 1000, d1: 1600 }),
+      pops: (el, l) => spots(el, l, lv(l, 5, 9, 26), 'popc', () => dot(`border:3px solid ${pick(['#ffd34d', '#7be0ff', '#ff8fab', '#b6f5c3'])}`), 20, { dur: 700, s: 2.2 }),
+      ups: (el, l) => fall(el, l, lv(l, 3, 6, 16), 'ups', () => UPS, 18, 1.3, { up: true, sway: 14, d0: 900, d1: 1400 }),
+      // ---- franquias
+      onering: (el, l) => { const s = lv(l, 70, 120, 230), [x, y] = ctr(el, s); parts(x, y, 1, () => ['ring', RING, { dur: 1500, s: 1.15, rot: 200, w: s, h: s }]); if (l >= 2) E.twinkle(el, 1); if (l >= 3) fx.flash(true); },
+      eye: (el, l) => { const w = lv(l, 44, 78, 170), h = w * 1.6, [x, y] = center(el), top = l >= 3 ? sy() + vh() * .06 : y - cardH(el) / 2 - h * .75, left = l >= 3 ? sx() + vw() / 2 - w / 2 : x - w / 2; if (l >= 3) overlay('ptdim', 2000); spawn('ptp eye', left, top, EYE, 1900).style.cssText += `width:${w}px;height:${h}px;opacity:1;animation:ptfadein 1.7s ease-in-out forwards`; if (l >= 3) fx.quake(); },
+      beacon: (el, l) => { const n = lv(l, 3, 5, 9), a = area(el, l), base = l >= 3 ? a.y + a.h - 6 : a.y + a.h * .85; for (let i = 0; i < n; i++) { const f = spawn('ptflame', a.x + (n === 1 ? a.w / 2 : i * a.w / (n - 1)) - 20, base, '', 1500); f.style.width = lv(l, 28, 40, 56) + 'px'; f.style.height = lv(l, 52, 80, 120) + 'px'; f.style.animationDelay = i * lv(l, 140, 120, 150) + 'ms'; } },
+      mithril: (el, l) => { fx.sheen(el); spots(el, l, lv(l, 6, 12, 30), 'twinkle', () => STAR(pick(['#e8f4ff', '#bcd8ff', '#ffffff'])), 16, { dur: 900, s: 1.4, rot: 90 }); },
+      tardis: (el, l) => { const s = lv(l, 54, 90, 170), [x, y] = ctr(el, s); parts(x, y, 1, () => ['tardis', TARDIS, { dur: 1200, s: 1.1, rot: 720, w: s * .62, h: s }]); if (l >= 2) E.whirlpool(el, 1); if (l >= 3) fx.gag('barrel', el); },
+      tracers: (el, l) => { fly(el, l, lv(l, 4, 9, 24), 'tracer', () => dot('border-radius:2px;background:linear-gradient(90deg,rgba(255,226,122,0),#ffe27a,#fff)'), lv(l, 46, 70, 110), .05, { d0: 220, d1: 420, dy: 14 }); if (l >= 2) later(() => fx.flash(true), 160); if (l >= 3) fx.quake(); },
+      warp: (el, l) => { E.void(el, l); if (l >= 2) E.tendrils(el, 2); },
+      crystal: (el, l) => { const s = lv(l, 56, 96, 190), [x, y] = ctr(el, s); parts(x, y, 1, () => ['crystal', CRYSTAL, { dur: 1400, s: 1.2, rot: 25, w: s * .7, h: s }]); E.twinkle(el, l); if (l >= 3) fx.flash(true); },
+    });
     /** Jogou a carta: assinatura da cor (ou do título) + no máximo um extra do título. */
     fx.play = (key, el, l) => E[key] && (E[key](el, l || 3), true);   // dispara uma variação pelo nome e nível (testes)
     /** Nível pelo custo de mana: 0-2 = 1 (sutil), 3-4 = 2 (médio), 5+ = 3 (a tela toda). */
     fx.level = cmc => (cmc >= 5 ? 3 : cmc >= 3 ? 2 : 1);
     /** Jogou a carta: assinatura da cor (ou do título) + um extra do título (só a partir do nível 2). Cartas baratas ficam sutis para dar para continuar testando. */
-    fx.cast = (name, colors, el, cmc) => { const l = fx.level(cmc || 0); castKeys(name, colors).forEach((k, i) => { if (i === 1 && l < 2) return; later(() => E[k] && E[k](el, l), i * 280); }); };
+    fx.cast = (name, colors, el, cmc, typeLine, oracle, franchise) => { const l = fx.level(cmc || 0); castKeys(name, colors, typeLine, oracle, franchise).forEach((k, i) => { if (i === 1 && l < 2) return; later(() => E[k] && E[k](el, l), i * 280); }); };
 
     /** Terreno que virou: efeito discreto pelo nome. */
     fx.land = (name, el) => {
@@ -402,5 +522,5 @@
     };
   }
 
-  return { analyze, hitByWrath, titleKeys, castKeys, landKey, landScore, colorOfType, BASICS, POOLS, hash, fx, level: cmc => (cmc >= 5 ? 3 : cmc >= 3 ? 2 : 1) };
+  return { analyze, hitByWrath, titleKeys, castKeys, typeKeys, oracleKeys, flavorKeys, franchiseOf, deckFranchise, FRANCHISE_KEYS, TYPE_RULES, ORACLE_RULES, landKey, landScore, colorOfType, BASICS, POOLS, hash, fx, level: cmc => (cmc >= 5 ? 3 : cmc >= 3 ? 2 : 1) };
 });
