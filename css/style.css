@@ -201,3 +201,18 @@ footer.foot a { color: #b9a2ec; }
 .srchead b { font-size: 17px; }
 .cost { white-space: nowrap; }
 .badge .mi { vertical-align: -3px; }
+
+
+/* ---------- dado de RPG (sorteio do exemplo) ---------- */
+.dice-ov { position: fixed; inset: 0; z-index: 100; background: rgba(20, 16, 32, .8); backdrop-filter: blur(2px); animation: dfade .15s ease-out; cursor: pointer; overflow: hidden; }
+.dice-ov.out { opacity: 0; transition: opacity .18s; }
+.die-wrap { position: absolute; left: 0; top: 0; width: var(--d, 140px); height: var(--d, 140px); will-change: transform; }
+.die-body { position: relative; width: 100%; height: 100%; }
+.die-body.hit { animation: squash .16s ease-out; }
+.die-svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .5)); will-change: transform; }
+.die-n { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font); font-weight: 800; font-size: calc(var(--d, 140px) * .27); line-height: 1; color: var(--dn, #fff); text-shadow: 0 2px 5px rgba(0, 0, 0, .45); pointer-events: none; }
+.die-pw { width: 44%; height: auto; filter: invert(1) drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); }
+.dice-ov.landed .die-svg { filter: drop-shadow(0 0 18px rgba(211, 179, 65, .8)); }
+.dice-msg { position: absolute; left: 0; right: 0; bottom: 13%; margin: 0; text-align: center; color: #fff; font-size: 22px; font-weight: 300; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); padding: 0 16px; }
+@keyframes dfade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes squash { 0% { transform: scale(1); } 40% { transform: scale(.84, 1.1); } 100% { transform: scale(1); } }
