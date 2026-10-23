@@ -514,3 +514,38 @@ test('free spells custam 0 na média de custo (CMC) e baixam os terrenos; sem fr
   const inp = c => ({ cmc: c, draw: 0, ramp: 0, companion: false, colors: 1, archetype: 'Aggro', size: 60 });
   assert.ok(R.predict(inp(com.cmc)).lands < R.predict(inp(semFree.cmc)).lands);
 });
+
+
+test('custo efetivo: custos alternativos pagos da mão (spectacle, madness, evoke, dash, suspend, morph...) valem o menor, por texto da carta', () => {
+  assert.equal(R.manaValue('{1}{R}'), 2); assert.equal(R.manaValue('{X}{G}{G}'), 2); assert.equal(R.manaValue('{2/W}{W/U}{B/P}'), 4); assert.equal(R.manaValue(''), 0);
+  const eff = (cmc, text, extra) => R.classifyCard(mkCard({ name: 'X', cmc, mana_cost: '{' + cmc + '}', oracle_text: text, ...extra }));
+  const cases = [
+    ['spectacle', 3, 'Spectacle {R} (You may cast this spell for its spectacle cost rather than its mana cost if an opponent lost life this turn.)\nExile the top two cards.', 1],
+    ['madness', 3, 'Madness {R} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)\nDeals 4 damage.', 1],
+    ['suspend', 3, 'Suspend 1—{R} (Rather than cast this card from your hand, pay {R} and exile it with a time counter on it.)\nDeals 3 damage.', 1],
+    ['evoke', 5, 'Evoke {2}{U} (You may cast this spell for its evoke cost. If you do, it\'s sacrificed when it enters.)\nWhen this enters, draw two cards.', 3],
+    ['dash', 4, 'Dash {1}{R} (You may cast this spell for its dash cost.)\nHaste', 2],
+    ['miracle', 6, 'Miracle {1}{W} (You may cast this card for its miracle cost when you draw it if it\'s the first card you drew this turn.)\nDestroy all creatures.', 2],
+    ['ninjutsu', 4, 'Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand.)\nFlying', 2],
+    ['prototype', 6, 'Prototype {2}{R} — 3/2 (You may cast this spell with different mana cost, color, and size.)', 3],
+    ['morph', 6, 'Morph {5}{U}{U} (You may cast this card face down as a 2/2 creature for {3}.)', 3],
+    ['plot', 5, 'Plot {1}{R} (You may pay {1}{R} and exile this card from your hand. Cast it as a sorcery on a later turn without paying its mana cost.)', 2],
+  ];
+  for (const [kind, cmc, text, want] of cases) { const c = eff(cmc, text); assert.equal(c.effCmc, want, kind); assert.equal(c.alt.kind, kind, kind); assert.equal(c.cmc, cmc); }
+  // não é custo alternativo da mão (ou não é mais barato): continua valendo o custo cheio
+  assert.equal(eff(3, 'Flashback {1}{R} (You may cast this card from your graveyard for its flashback cost.)\nDeals 3 damage.').effCmc, 2);   // flashback: vale o menor custo
+  assert.equal(eff(1, 'Deals 1 damage to any target.\nFlashback—Sacrifice a Mountain. (You may cast this card from your graveyard by sacrificing a Mountain in addition to paying its other costs.)').effCmc, 0);   // custo que não é mana vale 0
+  assert.equal(eff(2, 'Flashback {4}{R}\nDraw two cards.').effCmc, 2);          // flashback mais caro: continua o custo da carta
+  assert.equal(eff(5, 'Escape—{3}{R}, Exile three other cards from your graveyard.').effCmc, 4);
+  assert.equal(eff(4, 'Unearth {1}{B} ({1}{B}: Return this card from your graveyard to the battlefield.)').effCmc, 2);
+  assert.equal(R.classifyCard(mkCard({ name: 'Snapcaster Mage', cmc: 2, type_line: 'Creature — Human Wizard', oracle_text: 'Flash\nWhen Snapcaster Mage enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.' })).alt, null);   // dar flashback a outra carta não é custo alternativo desta
+  assert.equal(eff(2, 'Kicker {1}{R}\nDeals 2 damage.').effCmc, 2);
+  assert.equal(eff(1, 'Spectacle {1}{R}\nDeals 1 damage.').effCmc, 1);            // alternativo mais caro: não vale
+  assert.equal(eff(0, 'Suspend 4—{U}\nTarget player draws three cards.').effCmc, 0); // nunca maior que o custo da carta
+  // a média de custo usa o efetivo, e o usuário pode desligar
+  const lights = 'Spectacle {R}\nExile the top two cards of your library. Until the end of your next turn, you may play those cards.';
+  const cards = [entry(4, { name: 'Light Up the Stage', cmc: 3, mana_cost: '{2}{R}', oracle_text: lights }), entry(4, { name: 'Lightning Bolt', cmc: 1, mana_cost: '{R}' })];
+  const agg = R.analyzeEntries(cards);
+  near(agg.cmc, (4 * 1 + 4 * 1) / 8); assert.equal(agg.altCount, 4);
+  near(R.analyzeEntries(cards, { alt: new Map([['Light Up the Stage', false]]) }).cmc, (4 * 3 + 4 * 1) / 8);
+});
