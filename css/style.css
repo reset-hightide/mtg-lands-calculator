@@ -632,3 +632,52 @@ html.pt-underwater { filter: url(#ptwater) saturate(1.2) hue-rotate(12deg) brigh
   .fc { margin-left: calc(var(--cw) * -.72); }
   #grimoire { bottom: 150px; }
 }
+
+/* ===== variedade de efeitos por nome: peças comuns e novas variações ===== */
+.ptp { position: absolute; z-index: 6400; pointer-events: none; opacity: 0; animation: ptpart var(--dur, 1400ms) ease-out var(--delay, 0ms) forwards; }
+@keyframes ptpart { 0% { opacity: 0; transform: translate(0, 0) rotate(0) scale(.4); } 14% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 0)) rotate(var(--rot, 0)) scale(var(--s, 1)); } }
+.ptp.bub { border-radius: 50%; background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, .9), rgba(150, 210, 255, .35) 55%, rgba(80, 170, 255, .15)); border: 2px solid rgba(190, 230, 255, .8); }
+.ptp.spore { border-radius: 50%; background: radial-gradient(circle, #f4ffd0, #9be15d 55%, rgba(120, 220, 80, 0) 72%); box-shadow: 0 0 10px #9be15d; }
+.ptp.gear { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .4)); }
+/* vermelho */
+.ptstreak { position: absolute; z-index: 6400; width: 54px; height: 4px; margin: -2px 0 0 -4px; pointer-events: none; border-radius: 4px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), #ffd34d 40%, #ff5a00); box-shadow: 0 0 8px #ff7a1a; transform: rotate(var(--a)) translateX(0); animation: ptstreakfx .8s ease-out forwards; }
+@keyframes ptstreakfx { 0% { opacity: 1; transform: rotate(var(--a)) translateX(10px) scaleX(.3); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) scaleX(1.2); } }
+.ptlava { position: absolute; z-index: 6200; pointer-events: none; filter: drop-shadow(0 0 8px #ff5a00); animation: ptlavafx 2.3s ease-out forwards; } @keyframes ptlavafx { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+.ptbreath { position: absolute; z-index: 6300; height: 140px; pointer-events: none; transform-origin: 0 50%; background: linear-gradient(90deg, rgba(255, 247, 170, .95), #ffb020 25%, #ff5a00 55%, rgba(255, 60, 0, 0)); border-radius: 60% 40% 40% 60% / 50%; filter: blur(3px); mix-blend-mode: screen; animation: ptbreathfx 1.3s ease-out forwards; }
+@keyframes ptbreathfx { 0% { transform: scaleX(0) scaleY(.3); opacity: 1; } 35% { transform: scaleX(1) scaleY(1); opacity: 1; } 100% { transform: scaleX(1) scaleY(1.5); opacity: 0; } }
+/* branco */
+.ptrays.big { width: 900px; height: 900px; }
+.ptdome { position: absolute; z-index: 6300; width: 340px; height: 340px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, .55), rgba(190, 225, 255, .28) 55%, rgba(255, 255, 255, .5) 62%, rgba(255, 255, 255, 0) 64%); box-shadow: 0 0 30px 6px rgba(200, 230, 255, .8), inset 0 0 40px rgba(255, 255, 255, .6); animation: ptdomefx 1.5s cubic-bezier(.2, .8, .3, 1) forwards; }
+@keyframes ptdomefx { 0% { transform: scale(.1); opacity: 0; } 25% { transform: scale(1.06); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.2); opacity: 0; } }
+.pthalo { position: absolute; z-index: 6300; width: 180px; height: 52px; border-radius: 50%; border: 7px solid #ffd96b; box-shadow: 0 0 18px #ffe9a0, inset 0 0 12px #ffe9a0; pointer-events: none; animation: pthalofx 1.5s ease-out forwards; }
+@keyframes pthalofx { 0% { transform: translateY(40px) scale(.2); opacity: 0; } 25% { transform: translateY(0) scale(1.1); opacity: 1; } 75% { transform: translateY(-10px) scale(1); opacity: 1; } 100% { transform: translateY(-30px) scale(1.2); opacity: 0; } }
+/* azul */
+.ptwhirl { position: absolute; z-index: 6300; width: 300px; height: 300px; pointer-events: none; filter: drop-shadow(0 0 8px rgba(80, 170, 255, .9)); animation: ptwhirlfx 1.4s ease-in-out forwards; }
+@keyframes ptwhirlfx { 0% { transform: rotate(0) scale(.1); opacity: 0; } 25% { opacity: 1; transform: rotate(240deg) scale(1.1); } 100% { transform: rotate(900deg) scale(.15); opacity: 0; } }
+.ptmist { position: absolute; z-index: 6300; border-radius: 50%; pointer-events: none; background: radial-gradient(ellipse, rgba(230, 245, 255, .85), rgba(180, 215, 245, .45) 55%, rgba(180, 215, 245, 0) 72%); filter: blur(14px); opacity: 0; animation: ptmistfx 2.2s ease-in-out forwards; }
+@keyframes ptmistfx { 0% { opacity: 0; transform: translateX(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translateX(var(--to)); } }
+html.pt-jelly { animation: ptjelly 1.3s ease-out; } @keyframes ptjelly { 0% { transform: none; } 15% { transform: scale(1.06, .94); } 30% { transform: scale(.95, 1.06); } 45% { transform: scale(1.03, .97); } 60% { transform: scale(.98, 1.02); } 80% { transform: scale(1.01, .99); } 100% { transform: none; } }
+/* preto */
+.pttend { pointer-events: none; animation: ptfadein 2s ease-in-out forwards; }
+.ptink { position: absolute; z-index: 6300; pointer-events: none; height: 0; border-radius: 0 0 50% 50% / 0 0 22% 22%; background: linear-gradient(180deg, #0b0214, #1a0830 85%, #3a1166); transform-origin: 50% 0; animation: ptinkfx 1.8s ease-in forwards; }
+@keyframes ptinkfx { 0% { height: 0; opacity: 1; } 55% { height: var(--len); opacity: 1; } 100% { height: calc(var(--len) * 1.4); opacity: 0; transform: translateY(80px); } }
+.ptdim.light { background: radial-gradient(ellipse at center, rgba(0, 0, 0, .1), rgba(0, 0, 0, .45)); }
+.ptwebs { animation: ptfadein 2s ease-in-out forwards; }
+.ptrun.bat { filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .35)); }
+.ptrun.ltr.bat { transform: scaleX(-1); }
+/* verde */
+.ptp.leafp, .ptp.petal, .ptp.feather { opacity: 0; }
+.ptgrass { position: absolute; z-index: 6300; width: 14px; pointer-events: none; translate: 0 -100%; transform-origin: 50% 100%; background: linear-gradient(180deg, #8bd45a, #2f7d2a); clip-path: polygon(50% 0, 100% 100%, 0 100%); animation: ptgrassfx 1.9s ease-out forwards; }
+@keyframes ptgrassfx { 0% { scale: 1 0; rotate: 0deg; opacity: 1; } 30% { scale: 1 1; rotate: var(--sway); } 55% { rotate: calc(var(--sway) * -1); } 75% { opacity: 1; } 100% { scale: 1 1; rotate: 0deg; opacity: 0; } }
+/* incolor */
+.ptlaser { position: fixed; z-index: 6300; pointer-events: none; background: #ff2a2a; box-shadow: 0 0 12px 3px rgba(255, 40, 40, .8); left: 0; top: 0; }
+.ptlaser.h { width: 100vw; height: 3px; animation: ptlaserh .9s ease-in-out forwards; } .ptlaser.v { width: 3px; height: 100vh; animation: ptlaserv .9s ease-in-out forwards; }
+@keyframes ptlaserh { 0% { transform: translateY(0); opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(var(--to)); opacity: 0; } }
+@keyframes ptlaserv { 0% { transform: translateX(0); opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(var(--to)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ptp, .ptstreak, .ptink, .ptgrass, .ptmist, .ptlaser { animation-duration: .01s !important; } }
+
+.ptp.rdrop { background: linear-gradient(180deg, rgba(190, 220, 255, 0), rgba(190, 220, 255, .95)); border-radius: 2px; }
+.pttendl, .ptwebl { position: absolute; z-index: 6300; pointer-events: none; animation: ptfadein 1.6s ease-in-out forwards; }
+.ptlaserl { position: absolute; z-index: 6300; pointer-events: none; background: #ff2a2a; box-shadow: 0 0 10px 2px rgba(255, 40, 40, .8); animation: ptlaserl .65s ease-out forwards; }
+.ptlaserl.h { width: 240px; height: 2px; } .ptlaserl.v { width: 2px; height: 280px; }
+@keyframes ptlaserl { 0% { opacity: 0; transform: scale(.2); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }
