@@ -1,5 +1,9 @@
 # Calculadora de Terrenos · Magic: The Gathering
 
+### 👉 Usar agora: **https://reset-hightide.github.io/mtg-lands-calculator/**
+
+Baixe o template Excel, preencha (ou cole a lista exportada do Archidekt) e receba o número de terrenos e as fontes de mana por cor.
+
 Recomenda quantos terrenos usar em um deck de Magic com **regressão linear múltipla** (custo médio de mana, compra e aceleração baratas, companion, número de cores, arquétipo e interação cor × arquétipo). É a aplicação do artigo [*Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas*](https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas) (Penatti & Costa, 2026, Revista E&S, DOI [10.22167/2675-6528-202601753](https://doi.org/10.22167/2675-6528-202601753)), que estende o modelo de Frank Karsten ([TCGplayer, 2022](https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/)).
 
 Site estático, sem servidor e sem dependências externas de código: tudo roda no navegador.
