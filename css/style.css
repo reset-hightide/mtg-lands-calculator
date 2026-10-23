@@ -203,16 +203,210 @@ footer.foot a { color: #b9a2ec; }
 .badge .mi { vertical-align: -3px; }
 
 
-/* ---------- dado de RPG (sorteio do exemplo) ---------- */
-.dice-ov { position: fixed; inset: 0; z-index: 100; background: rgba(20, 16, 32, .8); backdrop-filter: blur(2px); animation: dfade .15s ease-out; cursor: pointer; overflow: hidden; }
-.dice-ov.out { opacity: 0; transition: opacity .18s; }
-.die-wrap { position: absolute; left: 0; top: 0; width: var(--d, 140px); height: var(--d, 140px); will-change: transform; }
-.die-body { position: relative; width: 100%; height: 100%; }
-.die-body.hit { animation: squash .16s ease-out; }
-.die-svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .5)); will-change: transform; }
-.die-n { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font); font-weight: 800; font-size: calc(var(--d, 140px) * .27); line-height: 1; color: var(--dn, #fff); text-shadow: 0 2px 5px rgba(0, 0, 0, .45); pointer-events: none; }
-.die-pw { width: 44%; height: auto; filter: invert(1) drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); }
-.dice-ov.landed .die-svg { filter: drop-shadow(0 0 18px rgba(211, 179, 65, .8)); }
-.dice-msg { position: absolute; left: 0; right: 0; bottom: 13%; margin: 0; text-align: center; color: #fff; font-size: 22px; font-weight: 300; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); padding: 0 16px; }
-@keyframes dfade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes squash { 0% { transform: scale(1); } 40% { transform: scale(.84, 1.1); } 100% { transform: scale(1); } }
+
+
+/* =====================================================================================
+   Home no estilo do Scryfall: fundo roxo com redemoinho (mesma imagem da home deles),
+   caixa de entrada com borda dourada, painéis claros para o resultado e leque de cartas.
+   Se a imagem do Scryfall sair do ar, o degradê roxo mantém o visual.
+   ===================================================================================== */
+body.home {
+  background:
+    url("https://scryfall.com/assets/marketing/celebration-whirl-5007c3f355b0b33c85772aacd335901e171dc71ecea0d93b2e6ce2696c788972.webp") center top / cover no-repeat fixed,
+    radial-gradient(1100px 600px at 50% 0, #4a3358 0%, #342038 55%, #261728 100%) fixed;
+  background-color: #342038;
+}
+.sr { position: absolute; left: -9999px; }
+.stage { padding: 40px 0 26px; text-align: center; color: #fff; }
+.stage h1 { margin: 0 0 8px; font-size: clamp(28px, 4.6vw, 44px); line-height: 1.12; font-weight: 300; letter-spacing: -.4px; }
+.stage h1 b { font-weight: 700; color: var(--gold); }
+.stage .lead { margin: 0 auto; max-width: 60ch; font-size: 18px; line-height: 26px; color: rgba(255, 255, 255, .85); }
+.how { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; list-style: none; padding: 0; margin: 20px 0 22px; }
+.how li { display: flex; align-items: center; gap: 8px; padding: 5px 14px 5px 6px; border-radius: 999px; background: rgba(0, 0, 0, .28); border: 1px solid rgba(255, 255, 255, .18); font-size: 14px; }
+.how li span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #2b253a; font-weight: 800; font-size: 13px; }
+.searchbox { max-width: 900px; margin: 0 auto; padding: 16px; text-align: left; background: rgba(24, 17, 40, .82); border: 1px solid var(--gold); border-radius: 3px; box-shadow: 0 14px 44px rgba(0, 0, 0, .45); }
+.searchbox textarea { width: 100%; min-height: 220px; background: #2f2a45; color: #f3f0fa; border: 1px solid #50476b; border-radius: 2px; padding: 12px 14px; font: 14px/20px Consolas, "Liberation Mono", monospace; resize: vertical; }
+.searchbox textarea::placeholder { color: #9d95b5; }
+.searchbox textarea:focus { outline: 2px solid var(--gold); outline-offset: 0; }
+.sb-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.btn-gold { background: var(--gold); color: #2b253a; border: 0; padding: 12px 26px; font-size: 17px; font-weight: 800; border-radius: 2px; }
+.btn-gold:hover { background: #e3c452; }
+.btn-dark { background: rgba(0, 0, 0, .3); color: #fff; border: 1px solid #7d6b99; font-weight: 600; padding: 10px 16px; border-radius: 2px; }
+.btn-dark:hover { background: rgba(0, 0, 0, .5); border-color: #b3a3d1; }
+.btn-dark.small { padding: 6px 14px; font-size: 13px; }
+.linkbtn.light { color: #cdbfee; }
+.sb-row .status { text-align: left; margin: 0 0 0 4px; min-height: 0; color: rgba(255, 255, 255, .75); font-size: 14px; flex: 1 1 220px; }
+.sb-row .status.err { color: #ffb4ab; }
+.adv { margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, .14); padding-top: 10px; }
+.adv summary { color: #d9ccf5; font-weight: 600; }
+.adv summary .muted { color: rgba(255, 255, 255, .55); font-weight: 400; font-size: 13px; }
+.adv label { color: #cfc6e4; }
+.adv .opts { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 12px; margin-top: 10px; }
+@media (max-width: 800px) { .adv .opts { grid-template-columns: 1fr 1fr; } }
+.adv input[type=text], .adv select { background: #2f2a45; color: #f3f0fa; border-color: #50476b; }
+.adv .chip { background: rgba(0, 0, 0, .28); border-color: #50476b; color: #cfc6e4; }
+.adv .chip.on { color: #1d1d1d; }
+.adv .chip.auto.on { background: var(--gold); color: #2b253a; border-color: var(--gold); }
+.adv .detect { background: rgba(255, 255, 255, .08); border-left-color: var(--gold); color: #e8e1f7; }
+.minis { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.minis .muted-l { color: rgba(255, 255, 255, .7); font-size: 14px; }
+.minis .sep { width: 1px; height: 22px; background: rgba(255, 255, 255, .2); margin: 0 4px; }
+.mini { color: rgba(255, 255, 255, .88); text-decoration: none; font: 600 13.5px var(--font); padding: 5px 12px; border-radius: 3px; border: 1px solid #6f6288; background: rgba(0, 0, 0, .25); cursor: pointer; }
+.mini:hover { border-color: #b3a3d1; background: rgba(0, 0, 0, .45); color: #fff; }
+.mini.dz.over { border-color: #6dc98a; }
+
+/* ----- resultado: painéis claros sobre o fundo roxo ----- */
+body.home #results { margin-top: 6px; padding-bottom: 8px; }
+body.home .reshead h2 { color: #fff; font-weight: 300; }
+body.home .warn { color: #ffd98a; }
+.deck { box-shadow: 0 10px 34px rgba(0, 0, 0, .35); }
+.answer { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin-top: 14px; padding: 18px 22px; background: var(--hdr); color: #fff; border-radius: 3px; border-left: 5px solid var(--gold); }
+.answer .big-n { font-size: 64px; font-weight: 800; line-height: 1; color: var(--gold); letter-spacing: -1px; }
+.answer .big-l { font-size: 15px; color: rgba(255, 255, 255, .8); line-height: 20px; }
+.answer .big-l b { display: block; font-size: 20px; color: #fff; font-weight: 700; }
+.answer .srcpills { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 999px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .22); font-size: 15px; }
+.pill b { font-size: 20px; }
+.pill small { color: rgba(255, 255, 255, .7); font-size: 12.5px; }
+.answer .copybtn { background: rgba(255, 255, 255, .12); color: #fff; border: 1px solid rgba(255, 255, 255, .3); }
+.todo { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.todo li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 3px; background: #f8f9fa; border: 1px solid var(--line); font-size: 15px; }
+.todo li::before { content: "✓"; flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: #dff3e6; color: var(--good); }
+.todo li.todo-fix { background: #fff8e6; border-color: #ecd9a2; }
+.todo li.todo-fix::before { content: "!"; background: #ffe39b; color: #7a5200; }
+.more { margin-top: 12px; border: 1px solid var(--line); border-radius: 3px; background: #fbfbfc; }
+.more > summary { padding: 10px 14px; list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--strong); font-weight: 600; }
+.more > summary::before { content: "▸"; color: var(--link); transition: transform .15s; }
+.more[open] > summary::before { transform: rotate(90deg); }
+.more > summary .hint { color: var(--muted); font-weight: 400; font-size: 13px; }
+.more > .inner { padding: 4px 14px 14px; }
+.more table { margin-top: 4px; }
+.src .srchead b { font-size: 16px; }
+
+/* ----- leque de cartas (como a home do Scryfall) ----- */
+.cardstage { padding: 34px 0 0; text-align: center; color: #fff; overflow: hidden; }
+.cardstage h2 { margin: 0; font-size: 26px; font-weight: 300; }
+.cardstage .muted-l { color: rgba(255, 255, 255, .72); margin: 4px 0 0; font-size: 14px; }
+.fan { --cw: clamp(92px, 15.5vw, 180px); display: flex; justify-content: center; align-items: flex-end; margin-top: 22px; padding: 26px 8px 0; min-height: calc(var(--cw) * 1.42 + 30px); }
+.fc { flex: 0 0 var(--cw); width: var(--cw); margin-left: calc(var(--cw) * -.26); display: block; transform-origin: 50% 110%; transition: transform .18s ease, filter .18s; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .55)); position: relative; }
+.fc:first-child { margin-left: 0; }
+.fc img { display: block; width: 100%; height: auto; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; background: #1a1a1a; }
+.fc:hover { transform: translateY(-26px) scale(1.14) rotate(0deg) !important; z-index: 20; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .65)); }
+.fc.land::after { content: "terreno"; position: absolute; left: 6px; top: 6px; font: 700 10.5px var(--font); letter-spacing: .3px; padding: 1px 6px; border-radius: 2px; background: #1c7a4a; color: #fff; }
+.fan-actions { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 34px 0 26px; flex-wrap: wrap; position: relative; z-index: 30; }
+.fan-actions .muted-l { margin: 0; }
+body.home footer.foot { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .fc, .bigbtn { transition: none; } }
+
+
+/* ----- botões e novidades no formato da home do Scryfall (fileira de botões + lista de links embaixo) ----- */
+.btnrow { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+.sbtn-dark { display: inline-block; cursor: pointer; text-decoration: none; padding: 8px 16px; border-radius: 3px; font: 700 17px/22px var(--font); color: rgba(255, 255, 255, .86); background: rgba(24, 17, 40, .55); border: 1px solid #6c5a8a; }
+.sbtn-dark:hover { color: #fff; border-color: #b3a3d1; background: rgba(24, 17, 40, .8); }
+.sbtn-dark.over { border-color: #6dc98a; }
+.news { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 7px; justify-items: center; }
+.news li { display: flex; align-items: center; gap: 10px; font-size: 16px; line-height: 22px; }
+.news a { color: #fff; text-decoration: none; }
+.news a:hover { text-decoration: underline; }
+.nb { flex: 0 0 auto; min-width: 66px; text-align: center; padding: 0 8px; border-radius: 3px; font: 700 12.5px/20px var(--font); letter-spacing: .3px; color: #fff; }
+.nb-new { background: #e4541b; } .nb-data { background: #2a8ec7; }
+
+
+/* cartas sendo distribuídas (entram uma a uma) */
+.fc img { animation: deal .5s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 85ms); }
+@keyframes deal { from { opacity: 0; transform: translateY(70px) scale(.86) rotate(-6deg); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fc img { animation: none; } }
+
+
+/* ----- mão sendo carteada: da direita para a esquerda, uma carta por vez ----- */
+.fc img { animation: none; }
+.fan:not(.deal) .fc { opacity: 0; }
+.fan.deal .fc { animation: deal .62s cubic-bezier(.2, .75, .25, 1) backwards; animation-delay: calc(var(--i, 0) * 150ms); }
+@keyframes deal { from { opacity: 0; transform: translateX(var(--tx, 70vw)) rotate(22deg) scale(.9); } 12% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fan.deal .fc { animation: none; } }
+.cardstage .btn-gold.small { padding: 8px 18px; font-size: 14px; }
+
+/* ----- estatísticas da mão ----- */
+.handbox { max-width: 760px; margin: 0 auto 28px; padding: 16px 18px 14px; background: rgba(24, 17, 40, .7); border: 1px solid rgba(255, 255, 255, .18); border-radius: 3px; text-align: left; }
+.handbox h3 { margin: 14px 0 8px; font-size: 16px; font-weight: 400; color: #fff; }
+.handstats { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; font-size: 15px; }
+.handstats b { color: var(--gold); font-size: 17px; }
+.hchips { display: inline-flex; gap: 4px; margin-left: auto; }
+.hchip { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #1d1d1d; }
+.hchip.ok { background: #6dc98a; } .hchip.bad { background: #f0b84f; }
+.odds { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; align-items: end; height: 150px; padding-top: 4px; }
+.oc { display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; height: 100%; text-align: center; gap: 3px; }
+.oc .ob { background: rgba(255, 255, 255, .25); border-radius: 3px 3px 0 0; min-height: 3px; }
+.oc .ob.keep { background: #6dc98a; }
+.oc .ob.now { outline: 2px solid var(--gold); outline-offset: 1px; }
+.oc .op { font-size: 12.5px; color: rgba(255, 255, 255, .85); font-weight: 600; }
+.oc .ol { font-size: 13px; color: rgba(255, 255, 255, .7); }
+.handbox .muted-l { margin-top: 10px; }
+
+
+/* carta clicável: compra outra mão; "↗" abre no Scryfall */
+.fc { cursor: pointer; outline: none; }
+.fc:focus-visible { box-shadow: 0 0 0 3px var(--gold); border-radius: 5%; }
+.fx { position: absolute; right: 7px; top: 7px; width: 24px; height: 24px; border-radius: 50%; display: none; place-items: center; background: rgba(0, 0, 0, .7); color: #fff; font-size: 14px; line-height: 1; text-decoration: none; z-index: 5; }
+.fc:hover .fx { display: grid; }
+.fx:hover { background: var(--gold); color: #2b253a; }
+
+
+/* ---------- Roda da Fortuna (sorteio do deck de exemplo) ---------- */
+.wheel-ov { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(20, 16, 32, .84); backdrop-filter: blur(2px); animation: wfade .2s ease-out; }
+.wheel-ov.out { opacity: 0; transition: opacity .2s; }
+.wheel-box { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px; max-width: 96vw; }
+.wheel-stage { position: relative; width: min(92vw, 660px); -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 78%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 78%, transparent 100%); }
+.w-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.w-disc { position: absolute; transform-origin: 50% 50%; will-change: transform; }
+.w-pointer { position: absolute; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 22px solid var(--gold); transform: translate(-50%, -100%); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)); }
+.wheel-msg { margin: 0; padding: 6px 18px; border-radius: 4px; background: rgba(20, 18, 15, .8); color: #f3e9d2; font-size: 22px; font-weight: 300; text-align: center; letter-spacing: .5px; }
+@keyframes wfade { from { opacity: 0; } to { opacity: 1; } }
+
+.wheel-msg.result { font-size: 30px; font-weight: 700; color: #ffe08a; letter-spacing: .3px; }
+
+
+/* ----- acessibilidade: foco visível para quem usa teclado ----- */
+button:focus-visible, a:focus-visible, summary:focus-visible, label.sbtn-dark:focus-within, .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ----- glossário ----- */
+.glossary dl { margin: 6px 0 0; display: grid; grid-template-columns: 190px 1fr; gap: 8px 16px; }
+.glossary dt { font-weight: 700; color: var(--strong); } .glossary dd { margin: 0; color: var(--text); }
+@media (max-width: 640px) { .glossary dl { grid-template-columns: 1fr; gap: 2px; } .glossary dd { margin-bottom: 8px; } }
+
+/* ----- dica da roda ----- */
+.wheel-hint { margin: -6px 0 0; color: rgba(255, 255, 255, .55); font-size: 13px; }
+
+/* ----- celular: cabeçalho e topo mais compactos para o campo da lista aparecer logo ----- */
+@media (max-width: 640px) {
+  .bar { min-height: 0; padding-top: 6px; padding-bottom: 6px; }
+  .brand { font-size: 15px; }
+  .nav { gap: 4px; } .nbtn { font-size: 13px; padding: 4px 9px; } .nbtn.ghost { display: none; }
+  .stage { padding: 18px 0 16px; }
+  .stage h1 { font-size: 26px; } .stage .lead { font-size: 15.5px; line-height: 22px; }
+  .how { display: none; }
+  .searchbox { padding: 12px; margin-top: 14px; }
+  .searchbox textarea { min-height: 150px; }
+  .btn-gold { width: 100%; text-align: center; }
+  .btnrow { margin-top: 16px; } .sbtn-dark { font-size: 15px; padding: 7px 12px; }
+  .news li { font-size: 14.5px; align-items: flex-start; } .nb { min-width: 56px; }
+  .answer { padding: 14px 16px; gap: 12px; } .answer .big-n { font-size: 52px; } .answer .srcpills { margin-left: 0; }
+  .deck { padding: 16px 14px; }
+}
+
+/* ----- arquétipo trocável no próprio resultado ----- */
+.badge.archpick { cursor: pointer; padding-right: 3px; }
+.badge.archpick select { font: inherit; font-weight: 700; color: var(--text); background: #fff; border: 1px solid var(--line); border-radius: 3px; padding: 0 2px; cursor: pointer; }
+.badge.archpick select:focus-visible { outline: 2px solid #8b6fd6; outline-offset: 1px; }
+
+
+/* ----- cartas da Weatherlight (só em "Sobre o modelo") ----- */
+.crew { background: #fff; border-top: 1px solid #eceaf3; padding: 34px 20px 44px; text-align: center; overflow: hidden; }
+.crew h2 { margin: 0 0 4px; font-size: 24px; font-weight: 300; color: #2b253a; }
+.crew p { margin: 0 auto; max-width: 62ch; color: #5b566c; font-size: 14.5px; line-height: 21px; }
+.crew-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px 6px; margin: 22px auto 0; max-width: 1100px; }
+.crew-card { display: block; width: clamp(96px, 13.4vw, 138px); transition: transform .18s ease, filter .18s; filter: drop-shadow(0 5px 8px rgba(40, 30, 60, .3)); }
+.crew-card img { display: block; width: 100%; height: auto; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; background: #eee; }
+.crew-card.ra { transform: rotate(-3deg); } .crew-card.rb { transform: rotate(3deg) translateY(8px); }
+.crew-card:hover, .crew-card:focus-visible { transform: translateY(-10px) rotate(0) scale(1.08); z-index: 3; filter: drop-shadow(0 12px 16px rgba(40, 30, 60, .4)); }
+@media (prefers-reduced-motion: reduce) { .crew-card { transition: none; } }
