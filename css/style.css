@@ -684,3 +684,13 @@ html.pt-jelly { animation: ptjelly 1.3s ease-out; } @keyframes ptjelly { 0% { tr
 .ptlaserl { position: absolute; z-index: 6300; pointer-events: none; background: #ff2a2a; box-shadow: 0 0 10px 2px rgba(255, 40, 40, .8); animation: ptlaserl .65s ease-out forwards; }
 .ptlaserl.h { width: 240px; height: 2px; } .ptlaserl.v { width: 2px; height: 280px; }
 @keyframes ptlaserl { 0% { opacity: 0; transform: scale(.2); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }
+
+/* ----- feedback ----- */
+.fbk { max-width: 720px; }
+.fbk form { display: grid; gap: 12px; }
+.fbk textarea { min-height: 140px; font: 15px/22px var(--font); }
+.fbk .fbrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fbk .hp { position: absolute; left: -9999px; }
+.fbk .fbmsg { min-height: 1.4em; margin: 0; color: var(--primary); font-weight: 700; }
+@media (max-width: 640px) { .fbk .fbrow { grid-template-columns: minmax(0, 1fr); } }
+.foot .fbbtn { display: inline-block; margin: 0 0 12px; text-decoration: none; }
