@@ -229,7 +229,8 @@ test('Archidekt: linhas do export de texto (set, coleção, foil, categorias, ta
     '1x Lurrus of the Dream-Den (iko) 226 [Companion]',
   ].join('\n');
   const p = R.parseDeck(text);
-  assert.deepEqual([...p.main.entries()], [['Sol Ring', 1], ['Command Tower', 1], ['Lightning Bolt', 2], ["Atraxa, Praetors' Voice", 1], ['Fire // Ice', 1], ['Jwari Disruption // Jwari Ruins', 1]]);
+  assert.deepEqual([...p.main.entries()], [['Sol Ring', 1], ['Command Tower', 1], ['Lightning Bolt', 2], ['Fire // Ice', 1], ['Jwari Disruption // Jwari Ruins', 1]]);
+  assert.deepEqual([...p.commanders.entries()], [["Atraxa, Praetors' Voice", 1]]);   // comandante fica à parte (zona de comando)
   assert.deepEqual([...p.side.entries()], [['Rest in Peace', 1], ['Lurrus of the Dream-Den', 1]]);
   assert.equal(p.ignored, 2); assert.equal(p.companionSection, true);
 });
@@ -262,25 +263,28 @@ test('fontes: exemplo do post (28 pips azuis + 8 brancos, 20 terrenos -> 16 e 5 
 test('fontes: pips múltiplos usam a tabela (14–16 / 20 / 23–25; 100 cartas 22–26 / 28–30 / 32+) e crédito de ramp', () => {
   const mk = (maxU) => ({ pips: { W: 0, U: 20, B: 0, R: 10, G: 0 }, totalPips: 30, maxSingle: { W: 0, U: maxU, B: 0, R: 1, G: 0 }, rampCredit: { W: 0, U: 1, B: 0, R: 0, G: 0 }, landSources: { W: 0, U: 0, B: 0, R: 0, G: 0 } });
   const u = (maxU, lands, size) => R.requiredSources(mk(maxU), lands, size).find(r => r.color === 'U');
-  assert.equal(u(2, 10, 40).needed, 14);          // fórmula daria 7; a tabela exige 14
-  assert.deepEqual(u(2, 10, 40).tableRange, [14, 16]);
+  assert.equal(u(2, 16, 40).needed, 14);          // fórmula daria 11; a tabela exige 14
+  assert.deepEqual(u(2, 16, 40).tableRange, [14, 16]);
   assert.equal(u(3, 20, 60).needed, 20);
   assert.equal(u(4, 24, 60).needed, 23);          // fórmula 16 < 23
   assert.equal(u(4, 24, 60).fromLands, 22);       // 23 - 1 de ramp (3 criaturas), arredondado para cima
   assert.equal(u(2, 40, 100).needed, 27);         // fórmula 27 > mín. 22
-  assert.equal(u(3, 20, 100).needed, 28);
-  assert.equal(u(4, 20, 100).needed, 32);
-  assert.equal(u(6, 20, 60).needed, 23);          // 4+ pips = linha de 4
+  assert.equal(u(3, 40, 100).needed, 28);
+  assert.equal(u(4, 40, 100).needed, 32);
+  assert.equal(u(6, 24, 60).needed, 23);          // 4+ pips = linha de 4
   assert.equal(u(1, 24, 60).tableRange, null);
+  // nunca mais fontes do que terrenos: a tabela pede 23 mas o deck só tem 20
+  assert.equal(u(4, 20, 60).needed, 20); assert.equal(u(4, 20, 60).capped, true); assert.equal(u(4, 24, 60).capped, false);
 });
 
-test('sourcesInfo: pips x cópias, free spells fora da regra de múltiplos, ramp 0,33/0,66, fontes nos terrenos e MDFC', () => {
+test('sourcesInfo: pips x cópias, free spells fora da conta, ramp 0,33/0,66, fontes nos terrenos e MDFC', () => {
   const c = (name, o) => ({ name, qty: o.qty, cls: R.classifyCard(o.card), card: o.card });
   const card = o => ({ name: 'X', cmc: 2, type_line: 'Instant', oracle_text: '', layout: 'normal', rarity: 'common', mana_cost: '', keywords: [], ...o });
   const cards = [
     c('Counterspell', { qty: 4, card: card({ name: 'Counterspell', mana_cost: '{U}{U}' }) }),
     c('Lightning Bolt', { qty: 4, card: card({ name: 'Lightning Bolt', cmc: 1, mana_cost: '{R}' }) }),
     c('Force of Will', { qty: 4, card: card({ name: 'Force of Will', cmc: 5, mana_cost: '{3}{U}{U}', oracle_text: "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost." }) }),
+    c('Fireblast', { qty: 4, card: card({ name: 'Fireblast', cmc: 6, mana_cost: '{4}{R}{R}', oracle_text: "You may sacrifice two Mountains rather than pay this spell's mana cost.\nFireblast deals 4 damage to any target." }) }),
     c('Birds', { qty: 3, card: card({ name: 'Birds of Paradise', cmc: 1, type_line: 'Creature — Bird', mana_cost: '{G}', oracle_text: '{T}: Add one mana of any color.', produced_mana: ['W', 'U', 'B', 'R', 'G'] }) }),
     c('Sol Ring', { qty: 1, card: card({ name: 'Sol Ring', cmc: 1, type_line: 'Artifact', mana_cost: '{1}', oracle_text: '{T}: Add {C}{C}.', produced_mana: ['C'] }) }),
     c('Mox Opal', { qty: 2, card: card({ name: 'Mox Opal', cmc: 0, type_line: 'Legendary Artifact', mana_cost: '{0}', oracle_text: '{T}: Add one mana of any color.', produced_mana: ['W', 'U', 'B', 'R', 'G'] }) }),
@@ -288,17 +292,17 @@ test('sourcesInfo: pips x cópias, free spells fora da regra de múltiplos, ramp
     c('Mdfc', { qty: 2, card: card({ name: 'Mdfc', layout: 'modal_dfc', rarity: 'rare', type_line: 'Instant // Land', mana_cost: '', card_faces: [{ type_line: 'Instant', mana_cost: '{1}{G}', oracle_text: '' }, { type_line: 'Land', mana_cost: '', oracle_text: '', produced_mana: ['G'] }] }) }),
   ];
   const info = R.sourcesInfo(cards);
-  near(info.pips.U, 8 + 8);                      // Counterspell 4x2 + Force of Will 4x2
-  near(info.pips.R, 4); near(info.pips.G, 3 + 2);
+  near(info.pips.U, 8);                          // só Counterspell (4x2): Force of Will é free spell e não conta
+  near(info.pips.R, 4); near(info.pips.G, 3 + 2);   // Lightning Bolt 4; Fireblast (free spell) não conta
   assert.equal(info.maxSingle.U, 2);             // Counterspell
   assert.equal(info.maxSingle.G, 1);
-  assert.equal(R.isFreeSpell(cards[2].card), true);
+  assert.equal(R.isFreeSpell(cards[2].card), true); assert.equal(R.isFreeSpell(cards[3].card), true);
   near(info.rampCredit.G, 3 / 3 + 2 * 2 / 3); near(info.rampCredit.U, 3 / 3 + 2 * 2 / 3);
   assert.equal(info.rampCredit.W > 0, true);
   near(info.landSources.U, 10); near(info.landSources.G, 2 * 0.38);
-  // Force of Will sozinho não dispara a tabela de pips múltiplos
-  const only = R.sourcesInfo([cards[2]]);
-  assert.equal(only.maxSingle.U, 0);
+  // Force of Will e Fireblast sozinhos não geram pips nem disparam a tabela de pips múltiplos
+  const only = R.sourcesInfo([cards[2], cards[3]]);
+  assert.equal(only.maxSingle.U, 0); assert.equal(only.maxSingle.R, 0); assert.equal(only.totalPips, 0);
 });
 
 
@@ -369,4 +373,126 @@ test('lista só com nomes (sem quantidade): cada linha vale 1 cópia, repetidas 
   assert.equal(R.parseDeck('Isso é uma frase longa. Outra frase aqui!\nMais uma pergunta?\nE outra coisa.').main.size, 0);
   // listas com quantidade continuam iguais
   assert.equal(R.parseDeck('4 Opt\n20 Island').main.get('Opt'), 4);
+});
+
+
+// ---------------------------------------------------------------------------------------------------
+// free spells, cheats, comandante e propriedades matemáticas
+const mkCard = o => ({ name: 'X', cmc: 2, type_line: 'Instant', oracle_text: '', layout: 'normal', rarity: 'common', mana_cost: '', keywords: [], ...o });
+const entry = (qty, o, extra) => { const card = mkCard(o); return { name: card.name, qty, cls: R.classifyCard(card), card, ...extra }; };
+
+test('free spells: custo alternativo (Force of Will, Fireblast, Daze, Snuff Out, Solitude) e não-free (Delve, Convoke)', () => {
+  const fow = mkCard({ name: 'Force of Will', cmc: 5, mana_cost: '{3}{U}{U}', oracle_text: "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost." });
+  const fireblast = mkCard({ name: 'Fireblast', cmc: 6, mana_cost: '{4}{R}{R}', oracle_text: "You may sacrifice two Mountains rather than pay this spell's mana cost." });
+  const daze = mkCard({ name: 'Daze', cmc: 3, mana_cost: '{1}{U}', oracle_text: "You may return an Island you control to its owner's hand rather than pay this spell's mana cost." });
+  const snuff = mkCard({ name: 'Snuff Out', cmc: 4, mana_cost: '{3}{B}', oracle_text: "If you control a Swamp, you may pay 4 life rather than pay this spell's mana cost." });
+  const solitude = mkCard({ name: 'Solitude', type_line: 'Creature — Elemental Incarnation', cmc: 5, mana_cost: '{3}{W}{W}', keywords: ['Flash', 'Lifelink', 'Evoke'], oracle_text: 'Evoke—Exile a white card from your hand.' });
+  const delve = mkCard({ name: 'Treasure Cruise', cmc: 8, mana_cost: '{7}{U}', keywords: ['Delve'], oracle_text: 'Delve\nDraw three cards.' });
+  const convoke = mkCard({ name: 'Chord of Calling', cmc: 3, mana_cost: '{X}{G}{G}{G}', keywords: ['Convoke'], oracle_text: 'Convoke' });
+  for (const c of [fow, fireblast, daze, snuff, solitude]) assert.equal(R.isFreeSpell(c), true, c.name);
+  for (const c of [delve, convoke]) assert.equal(R.isFreeSpell(c), false, c.name);
+});
+
+test('cheats: Show and Tell, Braids, Sneak Attack, Kaalia, Eureka são detectados; Cultivate e Brainstorm não', () => {
+  const sat = mkCard({ name: 'Show and Tell', cmc: 3, oracle_text: 'Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.' });
+  const braids = mkCard({ name: 'Braids, Conjurer Adept', type_line: 'Legendary Creature — Human Wizard', cmc: 4, oracle_text: 'At the beginning of each player\'s upkeep, that player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.' });
+  const sneak = mkCard({ name: 'Sneak Attack', type_line: 'Enchantment', cmc: 4, oracle_text: '{R}: You may put a creature card from your hand onto the battlefield. That creature gains haste.' });
+  const kaalia = mkCard({ name: 'Kaalia of the Vast', type_line: 'Legendary Creature — Human Cleric', cmc: 4, oracle_text: 'Whenever Kaalia of the Vast attacks an opponent, you may put an Angel, Demon, or Dragon creature card from your hand onto the battlefield tapped and attacking that player.' });
+  const eureka = mkCard({ name: 'Eureka', type_line: 'Sorcery', cmc: 4, oracle_text: 'Starting with you, each player may put a permanent card from their hand onto the battlefield. Repeat this process until no one puts a card onto the battlefield.' });
+  assert.deepEqual([...R.cheatTypes(sat)].sort(), ['artifact', 'creature', 'enchantment']);   // terreno não conta (não custa mana)
+  assert.deepEqual([...R.cheatTypes(braids)].sort(), ['artifact', 'creature', 'enchantment']);
+  assert.deepEqual([...R.cheatTypes(sneak)], ['creature']);
+  assert.deepEqual([...R.cheatTypes(kaalia)], ['creature']);
+  assert.equal(R.cheatTypes(eureka).has('creature') && R.cheatTypes(eureka).has('artifact'), true);
+  assert.equal(R.cheatTypes(mkCard({ name: 'Cultivate', type_line: 'Sorcery', oracle_text: 'Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand, then shuffle.' })), null);
+  assert.equal(R.cheatTypes(mkCard({ name: 'Brainstorm', oracle_text: 'Draw three cards, then put two cards from your hand on top of your library in any order.' })), null);
+});
+
+test('cheat no comandante (Braids custa 4): cartas de custo 5+ dos tipos liberados saem de graça; 4 ou menos, não', () => {
+  const braids = entry(1, { name: 'Braids, Conjurer Adept', type_line: 'Legendary Creature — Human Wizard', cmc: 4, mana_cost: '{2}{W}{U}', oracle_text: "At the beginning of each player's upkeep, that player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield." }, { commander: true });
+  const big = entry(1, { name: 'Sun Titan', type_line: 'Creature — Giant', cmc: 6, mana_cost: '{4}{W}{W}' });
+  const five = entry(1, { name: 'Baneslayer Angel', type_line: 'Creature — Angel', cmc: 5, mana_cost: '{3}{W}{W}' });
+  const four = entry(1, { name: 'Restoration Angel', type_line: 'Creature — Angel', cmc: 4, mana_cost: '{3}{W}' });
+  const wrath = entry(1, { name: 'Wrath of God', type_line: 'Sorcery', cmc: 4, mana_cost: '{2}{W}{W}' });
+  const bigSorcery = entry(1, { name: 'Terminus', type_line: 'Sorcery', cmc: 6, mana_cost: '{4}{W}{W}' });   // feitiço não é liberado pelo Braids
+  const f = R.freeSpellInfo([braids, big, five, four, wrath, bigSorcery]);
+  assert.deepEqual([...f.names].sort(), ['Baneslayer Angel', 'Sun Titan']);
+  assert.equal(f.enablers.length, 1);
+  // override do usuário: desmarcar uma carta a devolve à conta; marcar outra a tira
+  const g = R.freeSpellInfo([braids, big, five, four], new Map([['Sun Titan', false], ['Restoration Angel', true]]));
+  assert.deepEqual([...g.names].sort(), ['Baneslayer Angel', 'Restoration Angel']);
+  // sem cheat no deck, nada de 5+ é free
+  assert.equal(R.freeSpellInfo([big, five, four]).names.size, 0);
+});
+
+test('cheat barato (Show and Tell custa 3): só 5+ criaturas/artefatos/encantamentos; Omniscience entra, Counterspell não', () => {
+  const sat = entry(4, { name: 'Show and Tell', cmc: 3, mana_cost: '{2}{U}', oracle_text: 'Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.' });
+  const omni = entry(1, { name: 'Omniscience', type_line: 'Enchantment', cmc: 10, mana_cost: '{7}{U}{U}{U}' });
+  const grise = entry(1, { name: 'Griselbrand', type_line: 'Legendary Creature — Demon', cmc: 8, mana_cost: '{4}{B}{B}{B}{B}' });
+  const counter = entry(4, { name: 'Counterspell', cmc: 2, mana_cost: '{U}{U}' });
+  const four = entry(1, { name: 'Four Drop', type_line: 'Creature — Beast', cmc: 4, mana_cost: '{3}{U}' });
+  const info = R.sourcesInfo([sat, omni, grise, counter, four]);
+  assert.deepEqual([...info.free.names].sort(), ['Griselbrand', 'Omniscience']);
+  near(info.pips.U, 4 + 8 + 1);   // Show and Tell 4x1 + Counterspell 4x2 + Four Drop 1; Omniscience e Griselbrand ficam de fora
+  assert.equal(info.pips.B, 0);
+  assert.equal(info.maxSingle.U, 2);
+});
+
+test('propriedade: acrescentar free spells nunca muda pips, maxSingle nem fontes necessárias', () => {
+  const body = [entry(4, { name: 'Counterspell', cmc: 2, mana_cost: '{U}{U}' }), entry(4, { name: 'Lightning Bolt', cmc: 1, mana_cost: '{R}' }), entry(4, { name: 'Brainstorm', cmc: 1, mana_cost: '{U}' })];
+  const frees = [
+    entry(4, { name: 'Force of Will', cmc: 5, mana_cost: '{3}{U}{U}', oracle_text: "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost." }),
+    entry(4, { name: 'Fireblast', cmc: 6, mana_cost: '{4}{R}{R}', oracle_text: "You may sacrifice two Mountains rather than pay this spell's mana cost." }),
+  ];
+  const a = R.sourcesInfo(body), b = R.sourcesInfo([...body, ...frees]);
+  assert.deepEqual(b.pips, a.pips); assert.deepEqual(b.maxSingle, a.maxSingle); assert.equal(b.totalPips, a.totalPips);
+  assert.deepEqual(R.requiredSources(b, 24, 60).map(r => r.needed), R.requiredSources(a, 24, 60).map(r => r.needed));
+});
+
+test('propriedade: fontes entre 1 e o total de terrenos, soma das frações = 100%, mono-cor pede todos os terrenos', () => {
+  let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  for (let n = 0; n < 500; n++) {
+    const lands = 14 + Math.floor(rnd() * 30), size = [40, 60, 100][Math.floor(rnd() * 3)];
+    const pips = {}, maxSingle = {}, rampCredit = {}, landSources = {};
+    let total = 0;
+    for (const c of 'WUBRG') { const has = rnd() < 0.55; pips[c] = has ? 1 + Math.floor(rnd() * 30) : 0; maxSingle[c] = has ? 1 + Math.floor(rnd() * 5) : 0; rampCredit[c] = rnd() * 2; landSources[c] = 0; total += pips[c]; }
+    if (!total) continue;
+    const rows = R.requiredSources({ pips, totalPips: total, maxSingle, rampCredit, landSources }, lands, size);
+    near(rows.reduce((a, r) => a + r.share, 0), 1, 1e-9);
+    for (const r of rows) { assert.ok(r.needed >= 1 && r.needed <= lands, `needed ${r.needed} fora de 1..${lands}`); assert.ok(r.fromLands <= r.needed && r.fromLands >= 0); }
+  }
+  // mono-vermelho: 100% dos pips -> todos os terrenos são fonte de vermelho, nunca mais que isso
+  for (const lands of [17, 20, 24, 40]) {
+    const r = R.requiredSources({ pips: { W: 0, U: 0, B: 0, R: 44, G: 0 }, totalPips: 44, maxSingle: { W: 0, U: 0, B: 0, R: 4, G: 0 }, rampCredit: { W: 0, U: 0, B: 0, R: 0, G: 0 }, landSources: { W: 0, U: 0, B: 0, R: 0, G: 0 } }, lands, lands > 30 ? 100 : 60);
+    assert.equal(r.length, 1); assert.equal(r[0].needed, lands);
+  }
+});
+
+test('comandante: fica fora da biblioteca da mão (99 cartas) mas conta nas 100 do deck', () => {
+  const cmd = entry(1, { name: 'Tatyova, Benthic Druid', type_line: 'Legendary Creature — Merfolk Druid', cmc: 4, mana_cost: '{3}{G}{U}' }, { commander: true });
+  const forest = entry(40, { name: 'Forest', cmc: 0, type_line: 'Basic Land — Forest', produced_mana: ['G'] });
+  const spells = entry(59, { name: 'Spell', cmc: 3, mana_cost: '{2}{G}' });
+  const cards = [cmd, forest, spells];
+  assert.equal(cards.reduce((a, c) => a + c.qty, 0), 100);
+  for (let i = 0; i < 200; i++) {
+    const { hand } = R.drawHand(cards, 7);
+    assert.equal(hand.length, 7); assert.ok(hand.every(c => c.name !== 'Tatyova, Benthic Druid'));
+  }
+  // comandante também aparece na análise (CMC médio e pips), como carta do deck
+  const agg = R.analyzeEntries([{ name: cmd.name, qty: 1, card: cmd.card, commander: true }, { name: 'Spell', qty: 3, card: spells.card }]);
+  assert.equal(agg.cards[0].commander, true); near(agg.cmc, (4 + 9) / 4);
+  // parser: seção "Commander" (Arena/Moxfield) e categoria do Archidekt
+  const p = R.parseDeck('Commander\n1 Tatyova, Benthic Druid\n\nDeck\n1 Sol Ring\n30 Forest');
+  assert.deepEqual([...p.commanders.keys()], ['Tatyova, Benthic Druid']); assert.equal(p.main.has('Sol Ring'), true); assert.equal(p.main.has('Tatyova, Benthic Druid'), false);
+  const q = R.parseDeck('1 Tatyova, Benthic Druid\n\n1 Sol Ring\n1 Forest\n'.replace(/^/, 'Commander\n'));
+  assert.deepEqual([...q.commanders.keys()], ['Tatyova, Benthic Druid']); assert.equal(q.main.size, 2);   // linha em branco encerra a seção do comandante
+});
+
+test('hipergeométrica: probabilidades somam 1 e a média bate com 7·L/N (biblioteca de 99 no Commander)', () => {
+  for (const [N, L] of [[60, 24], [40, 17], [99, 37], [99, 0], [99, 99]]) {
+    const o = R.handLandOdds(N, L, 7);
+    near(o.reduce((a, b) => a + b, 0), 1, 1e-9);
+    near(o.reduce((a, p, k) => a + k * p, 0), 7 * L / N, 1e-9);
+  }
+  near(R.handLandOdds(60, 24, 7)[0], (36 / 60) * (35 / 59) * (34 / 58) * (33 / 57) * (32 / 56) * (31 / 55) * (30 / 54), 1e-9);   // P(0 terrenos) à mão
 });

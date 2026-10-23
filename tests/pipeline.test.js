@@ -246,7 +246,7 @@ test('exemplos: todos os decks têm tamanho coerente e geram lista no formato do
     assert.ok(main === 60 || main === 100, `${e.name}: ${main}`);
     const text = global.ExamplesText(e, n => ({ name: n, set: 'abc', collector_number: '12' }));
     const parsed = R.parseDeck(text);
-    assert.equal([...parsed.main.values()].reduce((a, b) => a + b, 0), main);
+    assert.equal([...parsed.main.values(), ...parsed.commanders.values()].reduce((a, b) => a + b, 0), main);   // o comandante fica à parte
   }
   assert.match(global.ExamplesText(ex[0], () => ({ name: 'Opt', set: 'm21', collector_number: '60' })).split('\n')[0], /^4x Opt \(m21\) 60 \[Threat\]$/);
 });
