@@ -16,7 +16,7 @@
   // centro e raio da roda na imagem original (582 x 467), medidos sobre a borda da madeira
   const CX = 380, CY = 204, R = 150, SCALE = 1.04, FEATHER = 1.5;
   const IMAGE_URL = 'img/cena.webp';
-  const SPIN_MS = 4500;
+  const SPIN_MS = 2000;   // 2 segundos, com muitas voltas: gira bem rápido
 
   const randomIndex = n => root.crypto.getRandomValues(new Uint32Array(1))[0] % n;
 
@@ -113,7 +113,7 @@
         </div>
         <p class="wheel-msg">Girando a Roda da Fortuna…</p><p class="wheel-hint">clique para pular</p></div>`);
       const jitter = (Math.random() * 2 - 1) * 8;
-      const angle = plan(target, 0, jitter, 5 + randomIndex(2));
+      const angle = plan(target, 0, jitter, 9 + randomIndex(3));
       const disc = ov.querySelector('.w-disc'); msg = ov.querySelector('.wheel-msg');
       // clicar: se já terminou, fecha; se ainda está girando, pula direto para o resultado
       ov.addEventListener('click', () => { if (finished) return close(); disc.style.transition = 'none'; disc.style.transform = `rotate(${angle}deg) scale(${SCALE})`; done(); });

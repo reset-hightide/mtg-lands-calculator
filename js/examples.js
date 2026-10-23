@@ -31,7 +31,7 @@
       [4, 'Inquisition of Kozilek', 'Discard'], [4, 'Abrupt Decay', 'Removal'], [3, 'Maelstrom Pulse', 'Removal'], [4, 'Courser of Kruphix', 'Threat'],
       [2, "Vraska's Contempt", 'Removal'], [2, "Hero's Downfall", 'Removal'], [4, 'Overgrown Tomb', 'Land'], [4, 'Verdant Catacombs', 'Land'],
       [3, 'Woodland Cemetery', 'Land'], [7, 'Swamp', 'Land'], [7, 'Forest', 'Land'], [3, 'Thorn of the Black Rose', 'Sideboard'] ] },
-    { name: 'Simic Ramp Commander (Tatyova)', wheel: 'Coração', cards: [
+    { name: 'Simic Ramp Commander (Tatyova)', wheel: 'Coração', live: true, cards: [   // live: busca um deck de Commander de verdade no EDHREC; este é o reserva
       [1, 'Tatyova, Benthic Druid', 'Commander{top}'],
       ...S('Ramp', ['Sol Ring', 'Arcane Signet', 'Fellwar Stone', 'Simic Signet', 'Talisman of Curiosity', 'Gilded Lotus', "Cultivator's Caravan", 'Cultivate',
         "Kodama's Reach", 'Rampant Growth', 'Farseek', "Nature's Lore", 'Three Visits', 'Explosive Vegetation', 'Skyshroud Claim', 'Harrow', 'Utopia Sprawl', 'Wild Growth']),

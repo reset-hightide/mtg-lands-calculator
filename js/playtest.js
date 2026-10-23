@@ -2,9 +2,11 @@
  * Playtest em cima do próprio site (é uma zoeira): um grimório com o verso de Magic aparece só 1/4 na borda direita.
  * Arraste uma carta da mão para qualquer lugar da página e ela fica ali, por cima das tabelas; clique no grimório para
  * comprar. Sem zonas nem barras: enquanto você joga, o texto e os números do site deixam de ser selecionáveis.
- * Duplo clique vira a carta; arraste de volta para a mão, para o comandante ou para o grimório para guardá-la. Esc encerra.
+ * Clique na carta da mesa vira; arraste de volta para a mão, para o comandante ou para o grimório (metade de cima = topo,
+ * de baixo = fundo). Esc encerra.
+ * Efeitos (sem texto, sem emoji): a cor da carta jogada dá uma animação marcante; "destroy all" derruba a página;
+ * clicar numa fetch land abre a escolha do tipo de terreno que entra no lugar dela. Tudo decidido por texto e palavras do título.
  * Playtest.init({ fan, cmd, grim, end, renderFan(cartas), context() -> { cards, hand } | null, stopped() }).
- * As quantidades vêm do deck calculado: o grimório é o deck menos a mão (e menos o comandante).
  */
 (function (root) {
   'use strict';
@@ -14,14 +16,16 @@
   const RATIO = 680 / 488;
 
   let H = null;                 // ganchos do app
-  let P = null;                 // partida em andamento: { all, lib, hand, table, cmd } (null = site normal)
-  let dragging = 0, zTop = 3000;
+  let P = null;                 // partida em andamento: { all, lib, hand, table, cmd, gy } (null = site normal)
+  let dragging = 0, zTop = 3000, pick = null;
 
   /** Largura da carta da mão (a mesma da mesa). Mede a carta do leque; se ainda não existe, usa a mesma fórmula do CSS. */
   const cardW = () => { const fc = H && H.fan.querySelector('.fc'); return (fc && fc.offsetWidth) || Math.max(92, Math.min(180, root.innerWidth * 0.155)); };
   const hit = (el, x, y) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8; };
   const face = c => c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}" draggable="false">` : `<span class="ptn">${esc(c.name)}</span>`;
   const find = id => P && (P.all.find(c => c.id === id) || P.cmd.find(c => c.id === id));
+  const FX = () => root.PtFx.fx;
+  const elOf = c => document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`);
 
   // ------------------------------------------------------------------ partida
   function start() {
@@ -29,7 +33,13 @@
     const ctx = H.context(); if (!ctx) return null;
     let n = 0; const all = [], cmd = [];
     for (const e of ctx.cards) for (let i = 0; i < e.qty; i++) {
-      const c = { id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(), colors: e.card.colors || [], prof: root.PtFx ? root.PtFx.analyze(e.card) : { type: '' }, where: 'lib', x: 0, y: 0, z: 0, tapped: false };
+      const o = e.card.oracle_text || '';
+      const c = {
+        id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(),
+        colors: e.card.colors || [], typeLine: e.card.type_line || '', oracle: o,
+        etbTapped: /enters (?:the battlefield )?tapped/i.test(o) && !/unless|you may pay|if you control|if you don't|fewer/i.test(o),
+        prof: root.PtFx ? root.PtFx.analyze(e.card) : { type: '', fetchTypes: [] }, where: 'lib', x: 0, y: 0, z: 0, tapped: false,
+      };
       if (e.commander) { c.where = 'cmd'; cmd.push(c); } else all.push(c);
     }
     const lib = shuffle(all.slice()), hand = [];
@@ -41,8 +51,9 @@
   }
   function stop() {
     if (!P) return;
+    closePick();
     document.querySelectorAll('.ptcard').forEach(e => e.remove());
-    if (root.PtFx) root.PtFx.fx.clear();   // limpa as marcas de queimado
+    if (root.PtFx) root.PtFx.fx.clear();   // limpa as marcas e cancela os gags
     P = null; document.body.classList.remove('pt-playing'); H.end.classList.add('hidden');
     H.cmd.querySelectorAll('.cmdcard').forEach(el => { el.style.visibility = ''; });
     H.stopped && H.stopped();
@@ -62,7 +73,6 @@
       H.grim.classList.add('pull'); setTimeout(() => H.grim.classList.remove('pull'), 450);
     }
   }
-  function flash(t) { let m = document.getElementById('ptmsg'); if (!m) { m = document.createElement('div'); m.id = 'ptmsg'; document.body.appendChild(m); } m.textContent = t; m.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => m.classList.remove('on'), 1800); }
   function draw() {
     if (!start()) return;
     const c = P.lib.shift();
@@ -72,7 +82,7 @@
 
   // ------------------------------------------------------------------ cartas por cima da página
   function tableEl(c) {
-    let el = document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`);
+    let el = elOf(c);
     if (!el) { el = document.createElement('div'); el.className = 'ptcard'; el.dataset.pid = c.id; el.title = c.name + ' (clique para virar)'; el.innerHTML = face(c); document.body.appendChild(el); }
     el.style.width = cardW() + 'px'; el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; el.style.zIndex = c.z; el.classList.toggle('tapped', c.tapped);
     return el;
@@ -81,19 +91,18 @@
     const a = c.where === 'lib' ? P.lib : c.where === 'hand' ? P.hand : c.where === 'table' ? P.table : c.where === 'gy' ? P.gy : null;
     if (a && a.indexOf(c) >= 0) a.splice(a.indexOf(c), 1);
   }
-  function leave(c) {
-    detach(c);
-    if (c.where === 'table') { const el = document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`); if (el) el.remove(); }
-  }
+  function leave(c) { detach(c); if (c.where === 'table') { const el = elOf(c); if (el) el.remove(); } }
   function toTable(c, x, y) { leave(c); c.where = 'table'; c.x = Math.max(0, Math.min(root.document.documentElement.scrollWidth - cardW(), x)); c.y = Math.max(0, y); c.z = ++zTop; P.table.push(c); tableEl(c); }
   function toHand(c) { leave(c); c.where = 'hand'; c.tapped = false; P.hand.push(c); }
-  function toLib(c) { leave(c); c.where = 'lib'; c.tapped = false; P.lib.unshift(c); }
+  function toLib(c, bottom) { leave(c); c.where = 'lib'; c.tapped = false; bottom ? P.lib.push(c) : P.lib.unshift(c); }   // metade de cima do grimório = topo; de baixo = fundo
   function toCmd(c) { leave(c); c.where = 'cmd'; c.tapped = false; }
+  /** Carta sai da mesa com animação (e vai para o cemitério invisível). */
+  function exit(c, how) { const el = elOf(c); detach(c); c.where = 'gy'; if (el) FX().leave(el, how); }
 
-  // ------------------------------------------------------------------ arrastar (mouse e toque)
+  // ------------------------------------------------------------------ arrastar (mouse e toque): direto, sem clicar antes
   /** resolve() é chamado só quando o gesto vira arrasto de verdade: aí a partida começa (se ainda não começou). -> { c, el } */
   function startDrag(e, resolve) {
-    const sx = e.clientX, sy = e.clientY;
+    const sx = e.clientX, sy = e.clientY, thr = e.pointerType === 'touch' ? 4 : 6;
     let c = null, el = null, fromTable = false, ox = 0, oy = 0, ghost = null, raf = 0, moved = false, last = e;
     const place = ev => {
       last = ev;
@@ -105,11 +114,13 @@
       if (v) { root.scrollBy(0, v); if (fromTable) place(last); }
       raf = requestAnimationFrame(scrollLoop);
     };
+    const gHalf = (x, y) => { if (!hit(H.grim, x, y)) return null; const r = H.grim.getBoundingClientRect(); return y < r.top + r.height / 2 ? 'top' : 'bottom'; };
     const move = ev => {
-      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < thr) return;
       if (!moved) {
         const r = resolve(); if (!r || !r.c) { cleanup(); return; }
         ({ c, el } = r); moved = true; dragging++; fromTable = c.where === 'table';
+        closePick();
         const w = cardW(); ox = fromTable ? sx + root.scrollX - c.x : w / 2; oy = fromTable ? sy + root.scrollY - c.y : w * RATIO / 2;
         if (!fromTable) { ghost = document.createElement('div'); ghost.className = 'ptcard ghost'; ghost.style.width = w + 'px'; ghost.innerHTML = face(c); document.body.appendChild(ghost); if (el) el.style.opacity = '.25'; }
         else c.z = ++zTop;
@@ -117,111 +128,79 @@
         raf = requestAnimationFrame(scrollLoop);
       }
       place(ev);
-      H.grim.classList.toggle('drop', hit(H.grim, ev.clientX, ev.clientY));
+      const h = gHalf(ev.clientX, ev.clientY);
+      H.grim.classList.toggle('drop', !!h); H.grim.classList.toggle('drop-top', h === 'top'); H.grim.classList.toggle('drop-bottom', h === 'bottom');
     };
     const cleanup = () => { root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', up); root.removeEventListener('pointercancel', up); cancelAnimationFrame(raf); };
     const up = ev => {
-      cleanup(); H.grim.classList.remove('drop'); document.body.classList.remove('pt-drag');
+      cleanup(); H.grim.classList.remove('drop', 'drop-top', 'drop-bottom'); document.body.classList.remove('pt-drag');
       if (!moved) { const t = ev.target.closest && ev.target.closest('.ptcard'); if (t && P) { const k = find(+t.dataset.pid); if (k && k.where === 'table') tap(k); } return; }   // clique na carta da mesa: vira
       if (ghost) ghost.remove(); if (el) el.style.opacity = '';
-      root.addEventListener('click', ck => { ck.preventDefault(); ck.stopPropagation(); }, { capture: true, once: true });   // o arrasto não pode abrir link nem comprar mão
+      const blockClick = ck => { ck.preventDefault(); ck.stopPropagation(); root.removeEventListener('click', blockClick, true); };   // o arrasto não pode abrir link nem comprar mão
+      root.addEventListener('click', blockClick, true); setTimeout(() => root.removeEventListener('click', blockClick, true), 400);   // se nenhum clique vier (toque), o bloqueio expira sozinho
       setTimeout(() => { dragging = Math.max(0, dragging - 1); }, 80);
-      const x = ev.clientX, y = ev.clientY, px = x + root.scrollX - ox, py = y + root.scrollY - oy, isCmd = P.cmd.includes(c), was = c.where;
+      const x = ev.clientX, y = ev.clientY, px = x + root.scrollX - ox, py = y + root.scrollY - oy, isCmd = P.cmd.includes(c), was = c.where, half = gHalf(x, y);
       let played = false;
-      if (hit(H.grim, x, y)) { if (isCmd) { toTable(c, px, py); played = was !== 'table'; } else toLib(c); }
+      if (half) { if (isCmd) { toTable(c, px, py); played = was !== 'table'; } else toLib(c, half === 'bottom'); }
       else if (isCmd && hit(H.cmd, x, y)) toCmd(c);
       else if (!isCmd && hit(H.fan, x, y)) toHand(c);
       else { toTable(c, px, py); played = was !== 'table'; }
       refresh();
-      if (played) cast(c, targetAt(x, y, c));   // jogou da mão na mesa: efeito da carta
+      if (played) cast(c);   // jogou da mão na mesa: efeito da carta
     };
     root.addEventListener('pointermove', move); root.addEventListener('pointerup', up); root.addEventListener('pointercancel', up);
   }
-  function tap(c) {   // clique vira / desvira. Fetch land: some e vem outro terreno aleatório no lugar.
+  function tap(c) {   // clique vira / desvira. Fetch land: abre a escolha do terreno que entra no lugar dela.
     if (c.prof && c.prof.fetch && root.PtFx && !c.tapped) return crack(c);
-    c.tapped = !c.tapped; tableEl(c);
-    if (c.tapped && (c.land || (c.prof && c.prof.tapMana))) manaPop(c);
-    if (c.tapped && c.land && root.PtFx) root.PtFx.fx.land(c.name, elOf(c));   // terreno virado: efeito discreto pelo nome
+    c.tapped = !c.tapped; const el = tableEl(c);
+    if (c.tapped && c.prof && c.prof.tapMana) manaPop(c);
+    if (c.tapped && c.land && root.PtFx) FX().land(c.name, el);   // terreno virado: efeito discreto pelo nome
   }
-
-  // ------------------------------------------------------------------ efeitos engraçados (por texto/tipo da carta)
-  const FX = () => root.PtFx.fx;
-  const elOf = c => document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`);
-  /** Carta sai da mesa com animação (e vai para o cemitério invisível). */
-  function exit(c, how) { const el = elOf(c); detach(c); c.where = 'gy'; if (el) FX().leave(el, how); }
-  function targetAt(x, y, self) {   // carta da mesa embaixo do ponteiro (a de cima)
-    for (const e of document.elementsFromPoint(x, y)) { const t = e.closest && e.closest('.ptcard:not(.ghost)'); if (t) { const k = find(+t.dataset.pid); if (k && k !== self && k.where === 'table') return k; } }
-    return null;
-  }
-  function crack(c) {
-    const lands = P.lib.filter(l => l.land), el = elOf(c);
-    if (!lands.length) { FX().shake(el); return; }
-    const l = lands[rnd(lands.length)], x = c.x, y = c.y;
-    FX().poof(el); exit(c, 'burnaway'); shuffle(P.lib);
-    setTimeout(() => { if (!P) return; toTable(l, x, y); l.tapped = false; FX().pop(tableEl(l)); badge(); }, 380);
-  }
-  /** Custo alternativo de verdade: sacrifica/devolve terrenos da mesa ou exila carta da mão. Sem como pagar: a carta volta para a mão. */
-  function payAlt(c) {
-    const a = c.prof.alt, F = FX(), others = P.table.filter(x => x !== c);
-    if (a.kind === 'sacrifice' || a.kind === 'return') {
-      const pool = others.filter(x => x.prof.land && new RegExp('\\b' + a.type + '\\b', 'i').test(x.prof.type));
-      if (pool.length < a.n) return false;
-      pool.slice(-a.n).forEach(x => { if (a.kind === 'sacrifice') exit(x, 'burnaway'); else { F.poof(elOf(x)); toHand(x); refresh(x.id); } });
-      return true;
-    }
-    const pool = P.hand.filter(x => x.colors.includes(a.color));
-    if (pool.length < a.n) return false;
-    const gone = shuffle(pool.slice()).slice(0, a.n);
-    gone.forEach(x => { const i = P.hand.indexOf(x), fc = H.fan.querySelectorAll('.fc')[i]; if (fc) FX().leave(fc, 'burnaway'); detach(x); x.where = 'gy'; });
-    setTimeout(() => { if (P) refresh(); }, 520);
-    return true;
-  }
-  function cast(c, target) {
-    if (!root.PtFx || !P) return;
-    const p = c.prof, el = elOf(c), F = FX();
-    if (!p || !el) return;
-    if (p.alt && !payAlt(c)) { F.shake(el); setTimeout(() => { if (P && c.where === 'table') { toHand(c); refresh(c.id); } }, 520); return; }
-    let did = false;
-    if (p.wrath) {   // varredor: a mesa treme e o que for do tipo gira para fora da tela
-      did = true; F.quake(); F.crater(el, true); F.flash(); F.gag('gravity', el);   // a página racha e as letras caem
-      P.table.filter(x => x !== c).forEach((x, i) => { if (elOf(x)) setTimeout(() => { if (P && x.where === 'table') exit(x, 'spin'); }, i * 60); });   // a Cólera de Deus acaba com o jogo: leva a mesa inteira
-      setTimeout(() => { if (P) F.gameover(); }, 1500);
-    } else if (p.damage || p.target) {
-      if (p.damage) { F.flash(); did = true; F.scorch(target ? elOf(target) : el, p.damage); }   // chamusca a página
-      if (target) {
-        did = true; const te = elOf(target);
-        if (p.damage) { F.burn(te); F.float(te, '💥'); }
-        if (p.target === 'destroy') exit(target, 'shatter');
-        else if (p.target === 'exile') exit(target, 'burnaway');
-        else if (p.target === 'bounce') { F.poof(te); toHand(target); refresh(target.id); }
-        else if (p.target === 'counter') { F.poof(te); toLib(target); refresh(); }
-        else if (p.target === 'tap') { target.tapped = true; tableEl(target); }
-      }
-    }
-    if (p.draw) { did = true; for (let i = 0; i < p.draw; i++) setTimeout(() => { if (P) draw(); }, 450 * (i + 1)); }
-    if (p.ramp) {   // busca terreno: ele aparece na mesa (virado) ao lado, ou vem para a mão
-      did = true; const lands = shuffle(P.lib.filter(l => l.land)), cw = cardW(); let k = 0;
-      for (let i = 0; i < p.ramp.table && k < lands.length; i++, k++) { const l = lands[k]; toTable(l, c.x + (cw + 10) * (i + 1), c.y); l.tapped = true; F.pop(tableEl(l)); }
-      for (let i = 0; i < p.ramp.hand && k < lands.length; i++, k++) { toHand(lands[k]); refresh(lands[k].id); }
-      badge();
-    }
-    F.title(c.name, el, { damage: !!p.damage });   // efeitos pelas palavras do título
-    if (did || p.alt) setTimeout(() => { if (P && c.where === 'table') exit(c, 'fade'); }, 1900);   // a mágica resolveu: vai para o cemitério
-    else {   // sem efeito de mágica: um efeito por tipo de carta
-      if (p.creature) p.haste ? F.haste(el) : F.zzz(el);
-      if (p.planeswalker) F.gold(el); else if (p.artifact && !p.creature) F.sheen(el); else if (p.enchantment) F.sparkle(el);
-    }
-  }
-
-  /** Símbolo(s) de mana da cor que a carta produz: sobe bem rápido e some. */
+  /** Símbolo(s) de mana da cor que a carta produz: grande, sobe bem rápido e some. */
   function manaPop(c) {
     const cols = [...new Set(c.produced)].filter(x => 'WUBRGC'.includes(x)).slice(0, 5);
     if (!cols.length || !root.Mana) return;
-    const size = 26, gap = 4, w = cols.length * size + (cols.length - 1) * gap, cw = cardW();
+    const size = 58, gap = 6, w = cols.length * size + (cols.length - 1) * gap, cw = cardW();
     const m = document.createElement('div'); m.className = 'ptmana';
     m.style.left = (c.x + cw / 2 - w / 2) + 'px'; m.style.top = (c.y + cw * RATIO / 2 - size / 2) + 'px';
     m.innerHTML = cols.map(x => root.Mana.icon(x, size)).join('');
-    document.body.appendChild(m); setTimeout(() => m.remove(), 800);
+    document.body.appendChild(m); setTimeout(() => m.remove(), 900);
+  }
+
+  // ------------------------------------------------------------------ efeitos que ficaram: destruição global e fetch land
+  function closePick() { if (pick) { pick.remove(); pick = null; } }
+  /** Fetch land: aparecem os símbolos dos tipos que ela busca; escolher um traz do grimório o melhor terreno daquele tipo. */
+  function crack(c) {
+    closePick();
+    const el = elOf(c), list = c.prof.fetchTypes.length ? c.prof.fetchTypes : root.PtFx.BASICS;
+    FX().shake(el);
+    const cw = cardW(), size = list.length > 2 ? 52 : 66, gap = 10, w = list.length * size + (list.length - 1) * gap;
+    const box = document.createElement('div'); box.className = 'ptpick'; box.style.left = (c.x + cw / 2 - w / 2) + 'px'; box.style.top = (c.y + cw * RATIO / 2 - size / 2) + 'px';
+    box.innerHTML = list.map((t, i) => `<button type="button" class="ptpickbtn" data-t="${t}" style="--i:${i};width:${size}px;height:${size}px" aria-label="${t}">${root.Mana ? root.Mana.icon(root.PtFx.colorOfType(t), size - 6) : t}</button>`).join('');
+    document.body.appendChild(box); pick = box;
+    box.addEventListener('click', e => { const b = e.target.closest('.ptpickbtn'); if (!b) return; e.stopPropagation(); choose(c, b.dataset.t); });
+  }
+  function choose(c, type) {
+    closePick();
+    const F = FX(), x = c.x, y = c.y, el = elOf(c), re = new RegExp('\\b' + type + '\\b', 'i');
+    const cands = P.lib.filter(l => l.land && re.test(l.typeLine));
+    if (!cands.length) { F.shake(el); return; }   // sem terreno desse tipo no grimório
+    const score = l => root.PtFx.landScore(l.typeLine, l.oracle), best = Math.max(...cands.map(score)), top = cands.filter(l => score(l) === best), chosen = top[rnd(top.length)];
+    F.poof(el); exit(c, 'burnaway'); shuffle(P.lib);
+    setTimeout(() => { if (!P) return; toTable(chosen, x, y); chosen.tapped = chosen.etbTapped; F.pop(tableEl(chosen)); badge(); }, 380);
+  }
+  /** Jogou da mão na mesa. Destruição global derruba tudo; qualquer outra carta solta a assinatura da cor (e do título). */
+  function cast(c) {
+    if (!root.PtFx || !P || c.land) return;
+    const el = elOf(c), F = FX(); if (!el) return;
+    if (c.prof && c.prof.wrath) {   // a Cólera de Deus acaba com o jogo: cratera, letras caindo, a mesa inteira vai embora
+      F.quake(); F.crater(el, true); F.flash(); F.gag('gravity', el);
+      P.table.filter(x => x !== c).forEach((x, i) => { if (elOf(x)) setTimeout(() => { if (P && x.where === 'table') exit(x, 'spin'); }, i * 60); });
+      setTimeout(() => { if (P) F.blackout(); }, 1500);
+      setTimeout(() => { if (P && c.where === 'table') exit(c, 'fade'); }, 1900);
+      return;
+    }
+    F.cast(c.name, c.colors, el);
   }
 
   // ------------------------------------------------------------------ ligação com a página
@@ -229,8 +208,9 @@
     H = hooks;
     H.grim.addEventListener('click', () => { if (!dragging) draw(); });
     H.end.addEventListener('click', stop);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && P) stop(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (pick) closePick(); else if (P) stop(); } });
     document.addEventListener('pointerdown', e => {
+      if (pick && !e.target.closest('.ptpick')) closePick();
       if (e.button != null && e.button > 0) return;
       const t = e.target; if (!t.closest) return;
       const fc = t.closest('#fan .fc');
@@ -246,5 +226,5 @@
     }, true);
   }
 
-  root.Playtest = { init, reset: stop, active: () => !!P, busy: () => dragging > 0 || !!P };
+  root.Playtest = { init, reset: stop, active: () => !!P, busy: () => dragging > 0 || !!P, peek: () => P && { lib: P.lib.map(c => c.name), hand: P.hand.map(c => c.name), table: P.table.map(c => c.name) } };   // peek: só leitura (testes)
 })(typeof self !== 'undefined' ? self : this);

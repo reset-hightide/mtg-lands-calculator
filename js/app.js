@@ -101,12 +101,14 @@
       const idx = pool[Math.floor(Math.random() * pool.length)];
       state.lastExample = idx;
       const ex = EXAMPLES[idx];
-      wheel.say(ex.name);   // só o nome do deck sorteado
-      await Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção das cartas
+      let liveDeck = null;
+      if (ex.live && typeof DeckApi !== "undefined") liveDeck = await DeckApi.randomCommanderDeck();   // deck de Commander de verdade (EDHREC); sem rede, cai no exemplo local
+      wheel.say(liveDeck ? liveDeck.name : ex.name);   // só o nome do deck sorteado
+      if (!liveDeck) await Scryfall.fetchCards(ex.cards.map(c => c[1])).catch(() => {});   // busca set/coleção das cartas
       await sleep(900);
       wheel.close();
-      $('deckName').value = ex.name;
-      $('deckText').value = ExamplesText(ex, Scryfall.get);
+      $('deckName').value = liveDeck ? liveDeck.name : ex.name;
+      $('deckText').value = liveDeck ? liveDeck.text : ExamplesText(ex, Scryfall.get);
       state.colorsManual = '';
       await analyzePaste();
     } finally { state.rolling = false; }
