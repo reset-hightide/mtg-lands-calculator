@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sobre o modelo · Calculadora de Terrenos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232b253a'/%3E%3Ccircle cx='14' cy='32' r='5' fill='%23f8f2d0'/%3E%3Ccircle cx='23' cy='32' r='5' fill='%236fb6f0'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239a8dab'/%3E%3Ccircle cx='41' cy='32' r='5' fill='%23ee7b5f'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%236dc98a'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=20261026">
+<link rel="stylesheet" href="css/style.css?v=20261032">
 </head>
 <body>
 <header class="topbar">
@@ -84,7 +84,7 @@ terrenos(N)  = (N/60)·(20,2185 + 1,4316·CMC + Z) − 0,2283·compra_barata −
         <tr><td>4+ (CCCC)</td><td class="num">23–25</td><td class="num">23–25</td><td class="num">32+</td></tr>
       </tbody>
     </table>
-    <p class="muted small">Método e tabela: Mox Emporium (“Sua base de mana está errada”). Um terreno de duas cores conta como fonte das duas. “Hoje” soma só terrenos que declaram a mana que produzem no Scryfall (fetch lands e similares não entram).</p>
+    <p class="muted small">Método e tabela: Mox Emporium (“Sua base de mana está errada”). Um terreno de duas cores conta como fonte das duas. “Hoje” soma os terrenos que declaram a mana que produzem no Scryfall; fetch lands (Scalding Tarn, Verdant Catacombs, Evolving Wilds…) puxam a cor que o deck precisar e contam como fonte das cinco cores.</p>
 
     <h2 id="coeficientes">Coeficientes</h2>
     <p class="muted small">Coeficientes publicados no trabalho e reestimativa com a base completa (mesmas variáveis, mesmos pesos de MDFC).</p>
@@ -118,5 +118,6 @@ function mark() {
 addEventListener('scroll', mark, { passive: true }); mark();
 </script>
 <script src="js/mana.js?v=20261026"></script>
+<script src="js/crew.js?v=20261032"></script>
 </body>
 </html>

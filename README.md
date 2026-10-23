@@ -1,12 +1,26 @@
 # Calculadora de Terrenos · Magic: The Gathering
 
-### 👉 Usar agora: **https://reset-hightide.github.io/mtg-lands-calculator/**
+### 👉 Use agora: **https://reset-hightide.github.io/mtg-lands-calculator/**
 
-Baixe o template Excel, preencha (ou cole a lista exportada do Archidekt) e receba o número de terrenos e as fontes de mana por cor.
+Quantos terrenos o seu deck precisa? E quantas fontes de cada cor? Cole a lista do seu deck, clique em **Calcular** e pronto: a resposta aparece na hora, com os símbolos de mana, as cartas da sua mão inicial e uma explicação em linguagem de gente.
 
-Recomenda quantos terrenos usar em um deck de Magic com **regressão linear múltipla** (custo médio de mana, compra e aceleração baratas, companion, número de cores, arquétipo e interação cor × arquétipo). É a aplicação do artigo [*Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas*](https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas) (Penatti & Costa, 2026, Revista E&S, DOI [10.22167/2675-6528-202601753](https://doi.org/10.22167/2675-6528-202601753)), que estende o modelo de Frank Karsten ([TCGplayer, 2022](https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/)).
+## Como usar (leva 10 segundos)
 
-Site estático, sem servidor e sem dependências externas de código: tudo roda no navegador.
+1. **Cole a lista** do seu deck (Archidekt, Arena, MTGO ou Moxfield). Sem lista na mão? Clique em **Sortear um deck de exemplo** e gire a Roda da Fortuna.
+2. **Leia a resposta**: o número de terrenos recomendado e as fontes de mana de cada cor. Tamanho do deck, cores e arquétipo já vêm preenchidos sozinhos, e você pode trocar qualquer um com um clique.
+3. **Compre uma mão de 7 cartas** e veja quantos terrenos costumam vir. Clicou numa carta? Sai outra mão.
+
+Tem vários decks para conferir de uma vez? Baixe o **template em Excel**, preencha e envie de volta.
+
+## De onde vem o cálculo
+
+Do meu TCC, publicado como artigo: [*Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas*](https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas) (Penatti & Costa, 2026, Revista E&S, DOI [10.22167/2675-6528-202601753](https://doi.org/10.22167/2675-6528-202601753)). Analisei 39.287 decks vencedores e montei uma **regressão linear múltipla** que olha para o custo médio de mana, as cartas baratas de compra e aceleração, o companion, o número de cores, o arquétipo e como cor e arquétipo se combinam. É uma extensão do modelo de Frank Karsten ([TCGplayer, 2022](https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/)).
+
+Quanto às fontes de mana, o método é o dos pips: se metade dos símbolos de custo do deck é azul, metade dos terrenos deveria produzir azul, com ajustes para custos pesados (como {U}{U}{U}), para aceleradores de mana e para fetch lands, que valem como fonte das cinco cores.
+
+Tudo roda no seu navegador: sem servidor, sem cadastro, sem instalar nada. As cartas vêm do [Scryfall](https://scryfall.com/docs/api) em tempo real, então sets novos entram sozinhos.
+
+> O modelo erra, em média, cerca de 1,8 terreno para cima ou para baixo. Use o resultado como um ótimo ponto de partida para o seu deckbuilding, não como lei.
 
 ## O que tem
 
@@ -50,7 +64,12 @@ js/pipeline.js     planilha/lista -> resultado por deck
 js/scryfall.js     cliente da API (lote, cache de 7 dias)
 js/xlsx-lite.js    leitura e escrita de .xlsx sem dependências
 js/template.js     template Excel e planilha de resultado
+js/wheel.js        Roda da Fortuna (sorteio do deck de exemplo)
+js/examples.js     decks de exemplo no formato do Archidekt
+js/crew.js         faixa de cartas da Weatherlight (imagens do Scryfall)
+js/mana.js         símbolos de mana
 js/app.js  js/base.js
+img/cena.webp      arte da roda
 data/decks.csv     base de 39.287 decks (tabela)
 data/model_fit.json  coeficientes publicados x reestimados
 template/          template Excel pré-gerado
