@@ -300,3 +300,73 @@ test('sourcesInfo: pips x cópias, free spells fora da regra de múltiplos, ramp
   const only = R.sourcesInfo([cards[2]]);
   assert.equal(only.maxSingle.U, 0);
 });
+
+
+test('fetch lands: toda fetch land conta como fonte das cinco cores', () => {
+  const land = (name, text) => ({ name, type_line: 'Land', cmc: 0, layout: 'normal', rarity: 'rare', oracle_text: text, mana_cost: '', keywords: [] });
+  const tarn = land('Scalding Tarn', '{T}, Pay 1 life, Sacrifice Scalding Tarn: Search your library for an Island or Mountain card, put it onto the battlefield, then shuffle.');
+  const wilds = land('Evolving Wilds', '{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.');
+  const five = ['B', 'G', 'R', 'U', 'W'];
+  assert.deepEqual(R.fetchColors(tarn).sort(), five);
+  assert.deepEqual(R.fetchColors(wilds).sort(), five);
+  assert.deepEqual(R.fetchColors(land('Island', '({T}: Add {U}.)')), []);
+  const cards = [tarn, wilds].map((card, i) => ({ name: card.name, qty: i ? 3 : 4, cls: R.classifyCard(card), card }));
+  const info = R.sourcesInfo(cards);
+  for (const c of five) assert.equal(info.landSources[c], 7);   // Tarn (4) + Evolving Wilds (3) em todas as cores
+});
+
+
+test('drawHand: respeita quantidades, sem reposição, e conta terrenos da mão', () => {
+  const mk = (name, qty, isLand) => ({ name, qty, cls: { isLand }, card: { name } });
+  const cards = [mk('Forest', 24, true), mk('Elves', 4, false), mk('Big', 32, false)];
+  for (let n = 0; n < 500; n++) {
+    const { hand, lands } = R.drawHand(cards, 7);
+    assert.equal(hand.length, 7);
+    assert.equal(lands, hand.filter(c => c.name === 'Forest').length);
+    assert.ok(hand.filter(c => c.name === 'Elves').length <= 4);
+  }
+  // deck pequeno: não passa do tamanho do deck e usa todas as cartas
+  const tiny = R.drawHand([mk('A', 1, true), mk('B', 2, false)], 7);
+  assert.equal(tiny.hand.length, 3); assert.equal(tiny.lands, 1);
+  // determinístico com rng injetado
+  const seq = [0.0, 0.0, 0.0]; let i = 0;
+  const det = R.drawHand([mk('A', 1, true), mk('B', 1, false), mk('C', 1, false)], 2, () => seq[i++ % 3]);
+  assert.deepEqual(det.hand.map(c => c.name), ['A', 'B']);
+  // média de terrenos em 7 cartas de um deck 24/60 ≈ 2,8
+  let sum = 0; const N = 4000;
+  for (let n = 0; n < N; n++) sum += R.drawHand(cards, 7).lands;
+  assert.ok(Math.abs(sum / N - 7 * 24 / 60) < 0.12, `média ${sum / N}`);
+});
+
+
+test('handLandOdds: distribuição hipergeométrica exata (soma 1, média n·K/N, valores conhecidos)', () => {
+  const o = R.handLandOdds(60, 24, 7);
+  assert.equal(o.length, 8);
+  near(o.reduce((a, b) => a + b, 0), 1, 1e-12);
+  near(o.reduce((a, p, k) => a + k * p, 0), 7 * 24 / 60, 1e-12);
+  // P(0 terrenos) = C(36,7)/C(60,7) = 8347680 / 386206920
+  near(o[0], 8347680 / 386206920, 1e-12);
+  // P(2..4) bem conhecido para 24/60: ~0,77
+  const keep = o[2] + o[3] + o[4]; assert.ok(keep > 0.74 && keep < 0.80, String(keep));
+  // casos limite
+  assert.deepEqual(R.handLandOdds(60, 0, 7).map(x => +x.toFixed(6)), [1, 0, 0, 0, 0, 0, 0, 0]);
+  near(R.handLandOdds(60, 60, 7)[7], 1, 1e-12);
+  assert.equal(R.handLandOdds(5, 2, 7).length, 6);   // mão limitada ao tamanho do deck
+  // Commander: 100 cartas, 38 terrenos
+  near(R.handLandOdds(100, 38, 7).reduce((a, b) => a + b, 0), 1, 1e-12);
+});
+
+
+test('lista só com nomes (sem quantidade): cada linha vale 1 cópia, repetidas somam, seções respeitadas', () => {
+  const p = R.parseDeck('Lightning Bolt\nGoblin Guide\nMountain\nMountain\nMountain\n\nSideboard\nSmash to Smithereens\nSmash to Smithereens');
+  assert.deepEqual([...p.main.entries()], [['Lightning Bolt', 1], ['Goblin Guide', 1], ['Mountain', 3]]);
+  assert.deepEqual([...p.side.entries()], [['Smash to Smithereens', 2]]);
+  // com "Deck" e categorias do Archidekt sem quantidade
+  const q = R.parseDeck('Deck\nSol Ring [Ramp]\nCommand Tower\nBrainstorm [Maybeboard{noDeck}]');
+  assert.deepEqual([...q.main.keys()], ['Sol Ring', 'Command Tower']); assert.equal(q.ignored, 1);
+  // frases soltas e textos muito curtos não viram cartas
+  assert.equal(R.parseDeck('Olá, quero montar um deck de fogo.').main.size, 0);
+  assert.equal(R.parseDeck('Isso é uma frase longa. Outra frase aqui!\nMais uma pergunta?\nE outra coisa.').main.size, 0);
+  // listas com quantidade continuam iguais
+  assert.equal(R.parseDeck('4 Opt\n20 Island').main.get('Opt'), 4);
+});

@@ -250,3 +250,44 @@ test('exemplos: todos os decks têm tamanho coerente e geram lista no formato do
   }
   assert.match(global.ExamplesText(ex[0], () => ({ name: 'Opt', set: 'm21', collector_number: '60' })).split('\n')[0], /^4x Opt \(m21\) 60 \[Threat\]$/);
 });
+
+
+test('adviceFor: frases de próximo passo (terrenos e fontes por cor)', () => {
+  const base = { ok: true, delta: -1.7, lands: 22.3, currentLands: 24, sources: { rows: [
+    { color: 'U', needed: 17, current: 16 }, { color: 'R', needed: 6, current: 14 } ] } };
+  const a = P.adviceFor(base);
+  assert.equal(a[0].kind, 'todo'); assert.match(a[0].text, /cortar cerca de 2 terreno/);
+  assert.equal(a[1].kind, 'todo'); assert.match(a[1].text, /Faltam ≈ 1 fonte\(s\) de azul/);
+  assert.equal(a[2].kind, 'ok'); assert.match(a[2].text, /vermelho: suficientes/);
+  assert.match(P.adviceFor({ ...base, delta: 0.2 })[0].text, /alinhado/);
+  assert.match(P.adviceFor({ ...base, delta: 2.2 })[0].text, /Adicione cerca de 2/);
+  assert.deepEqual(P.adviceFor({ ok: false }), []);
+});
+
+
+test('roda da fortuna: o símbolo sorteado sempre para sob o ponteiro e todo símbolo tem deck de exemplo', () => {
+  global.self = global; delete require.cache[require.resolve('../js/examples.js')];
+  require('../js/wheel.js'); require('../js/examples.js');
+  const { plan, SYMBOLS } = global.Wheel, ex = global.EXAMPLES;
+  for (let n = 0; n < 4000; n++) {
+    const sym = SYMBOLS[n % SYMBOLS.length], cur = Math.random() * 3000, jitter = (Math.random() * 2 - 1) * 8, turns = 5 + (n % 2);
+    const a = plan(sym, cur, jitter, turns);
+    assert.ok(a >= cur + turns * 360 && a < cur + (turns + 1) * 360);                  // sempre gira para frente, no mínimo `turns` voltas
+    const under = (((sym.angle + a) % 360) + 360) % 360;                                  // posição do símbolo depois de girar
+    const off = Math.min(under, 360 - under);
+    assert.ok(off <= 8 + 1e-6, `símbolo ${sym.name} parou a ${off}° do topo`);
+  }
+  for (const s of SYMBOLS) assert.ok(ex.some(e => e.wheel === s.name), `sem deck para ${s.name}`);
+  for (const e of ex) assert.ok(SYMBOLS.some(s => s.name === e.wheel), `${e.name}: símbolo inválido`);
+});
+
+
+test('evaluateDeck: avisa quando o nome da carta foi corrigido e dá dica quando nada é reconhecido', () => {
+  const typoGet = n => n === 'Opti' ? DB.Opt : DB[n];   // "Opti" é entendido como Opt (fuzzy)
+  const r = P.evaluateDeck(deck([['Island', 24], ['Opti', 4], ['Big', 32]], [], { archetype: 'Midrange', colors: 'U' }), typoGet);
+  assert.ok(r.warnings.some(w => /Corrigimos 1 nome/.test(w) && /“Opti” → “Opt”/.test(w)), JSON.stringify(r.warnings));
+  const ok = P.evaluateDeck(deck([['Island', 24], ['Opt', 4], ['Big', 32]], [], { archetype: 'Midrange', colors: 'U' }), get);
+  assert.ok(!ok.warnings.some(w => /Corrigimos/.test(w)));                       // sem correção: sem aviso
+  const none = P.evaluateDeck(deck([['Xyz', 60]]), () => undefined);
+  assert.equal(none.ok, false); assert.match(none.error, /em inglês/);
+});
