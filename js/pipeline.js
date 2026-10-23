@@ -151,7 +151,7 @@
       archetype = Rules.ARCHETYPES.find(a => fold(a) === fold(p.archetype)) || null;
       if (!archetype) warnings.push(`Arquétipo “${p.archetype}” não reconhecido; usando sugestão automática.`);
     }
-    if (!archetype) { archetype = Rules.suggestArchetype(deck.name, cabText, agg.pureLands); archetypeSource = 'sugerido (regras do TCC)'; }
+    if (!archetype) { archetype = Rules.suggestArchetype(deck.name, cabText, agg.pureLands); archetypeSource = 'sugerido pelas regras do TCC'; }
 
     // companion
     let companion, companionSource = 'informado';
