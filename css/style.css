@@ -410,3 +410,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, label.sbtn-dark:fo
 .crew-card.ra { transform: rotate(-3deg); } .crew-card.rb { transform: rotate(3deg) translateY(8px); }
 .crew-card:hover, .crew-card:focus-visible { transform: translateY(-10px) rotate(0) scale(1.08); z-index: 3; filter: drop-shadow(0 12px 16px rgba(40, 30, 60, .4)); }
 @media (prefers-reduced-motion: reduce) { .crew-card { transition: none; } }
+
+
+/* ----- apresentação do projeto na aba de dados ----- */
+.project h2 { margin: 0 0 8px; font-size: 22px; font-weight: 300; color: var(--strong); }
+.project p { max-width: 74ch; margin: 0 0 10px; font-size: 15.5px; line-height: 24px; }
+.project .projlinks { margin: 14px 0 0; font-size: 14.5px; }
