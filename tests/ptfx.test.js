@@ -86,3 +86,29 @@ test('hitByWrath: cada varredor só pega os tipos certos', () => {
 test('nível do efeito pelo custo de mana: barata = sutil, cara = a tela toda', () => {
   assert.deepEqual([0, 1, 2].map(PtFx.level), [1, 1, 1]); assert.deepEqual([3, 4].map(PtFx.level), [2, 2]); assert.deepEqual([5, 6, 10].map(PtFx.level), [3, 3, 3]);
 });
+
+test('tipo de criatura e texto de regras escolhem o efeito (sem lista de nomes)', () => {
+  assert.ok(PtFx.typeKeys('Legendary Creature — Vampire Knight').includes('blooddrops'));
+  assert.ok(PtFx.typeKeys('Creature — Elf Archer').includes('arrows'));
+  assert.ok(PtFx.typeKeys('Creature — Merfolk Wizard').includes('fish') && PtFx.typeKeys('Creature — Merfolk Wizard').includes('runes'));
+  assert.deepEqual(PtFx.typeKeys('Creature — Human'), []);
+  assert.ok(PtFx.oracleKeys('Counter target spell.').includes('nullring'));
+  assert.ok(PtFx.oracleKeys('Draw two cards.').includes('pages'));
+  assert.ok(PtFx.oracleKeys('You gain 4 life.').includes('heal'));
+  // a assinatura vem do tipo/regras quando o título não tem palavra reconhecida, e é estável
+  const k = PtFx.castKeys('Fulano Sem Pista', ['G'], 'Creature — Elf Scout', '');
+  assert.equal(k[0], 'arrows'); assert.deepEqual(k, PtFx.castKeys('Fulano Sem Pista', ['G'], 'Creature — Elf Scout', ''));
+  assert.equal(PtFx.castKeys('Fulano Sem Pista', ['U'], 'Instant', 'Counter target spell.')[0], 'nullring');
+  // palavra do título ainda manda
+  assert.equal(PtFx.castKeys('Lightning Elf', ['G'], 'Creature — Elf', '')[0], 'bolt');
+  // variedade: vários tipos e textos geram vários efeitos
+  const tipos = ['Creature — Wolf', 'Creature — Zombie', 'Creature — Bird', 'Creature — Snake', 'Creature — Goblin', 'Creature — Spirit', 'Creature — Pirate'];
+  assert.equal(new Set(tipos.map(t => PtFx.castKeys('X', [], t, '')[0])).size, tipos.length);
+});
+
+test('franquias: pela edição (e pelo baralho), com piscina própria', () => {
+  assert.equal(PtFx.franchiseOf('LTR'), 'lotr'); assert.equal(PtFx.franchiseOf('ltc'), 'lotr'); assert.equal(PtFx.franchiseOf('dom'), null);
+  assert.equal(PtFx.deckFranchise(['ltr', 'ltr', 'dom', 'dom', 'dom']), 'lotr'); assert.equal(PtFx.deckFranchise(['ltr', 'dom', 'dom', 'dom', 'dom', 'dom']), null);
+  for (const n of ['Aragorn', 'Frodo', 'Sam', 'Gollum', 'Boromir', 'Pippin']) assert.ok(PtFx.FRANCHISE_KEYS.lotr.includes(PtFx.castKeys(n + ' zzz', ['W'], 'Creature — Human', '', 'lotr')[0]), n);
+  assert.equal(new Set(Array.from({ length: 60 }, (_, i) => PtFx.castKeys('Carta ' + i, ['G'], 'Creature — Human', '', 'lotr')[0])).size, PtFx.FRANCHISE_KEYS.lotr.length);
+});
