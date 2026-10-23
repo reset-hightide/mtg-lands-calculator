@@ -112,3 +112,12 @@ test('franquias: pela edição (e pelo baralho), com piscina própria', () => {
   for (const n of ['Aragorn', 'Frodo', 'Sam', 'Gollum', 'Boromir', 'Pippin']) assert.ok(PtFx.FRANCHISE_KEYS.lotr.includes(PtFx.castKeys(n + ' zzz', ['W'], 'Creature — Human', '', 'lotr')[0]), n);
   assert.equal(new Set(Array.from({ length: 60 }, (_, i) => PtFx.castKeys('Carta ' + i, ['G'], 'Creature — Human', '', 'lotr')[0])).size, PtFx.FRANCHISE_KEYS.lotr.length);
 });
+
+test('anéis: mana rock de 2+ manas = anel de fogo; The Ring tempts you = Anel Único (acima do título e da franquia)', () => {
+  assert.ok(PtFx.oracleKeys('{T}: Add {C}{C}.').includes('firering'));
+  assert.ok(!PtFx.oracleKeys('{T}: Add {C}.').includes('firering'));
+  assert.ok(PtFx.oracleKeys('At the beginning of your upkeep, you lose 1 life for each burden counter on it.').includes('onering'));
+  assert.equal(PtFx.castKeys('Anel Qualquer', [], 'Artifact', '{T}: Add {C}{C}.')[0], 'firering');
+  assert.equal(PtFx.castKeys('Sol Ring', [], 'Artifact', '{T}: Add {C}{C}.')[0], 'firering');          // "Ring" no título (halo) perde para a regra
+  assert.equal(PtFx.castKeys('The One Ring', [], 'Legendary Artifact', 'Indestructible\nAt the beginning of your upkeep, you lose 1 life for each burden counter.', 'lotr')[0], 'onering');
+});
