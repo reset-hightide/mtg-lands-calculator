@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Base de dados · Calculadora de Terrenos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232b253a'/%3E%3Ccircle cx='14' cy='32' r='5' fill='%23f8f2d0'/%3E%3Ccircle cx='23' cy='32' r='5' fill='%236fb6f0'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239a8dab'/%3E%3Ccircle cx='41' cy='32' r='5' fill='%23ee7b5f'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%236dc98a'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=20261032">
+<link rel="stylesheet" href="css/style.css?v=20261033">
 </head>
 <body>
 <header class="topbar">
@@ -28,6 +28,15 @@
 </div>
 
 <main class="wrap page">
+  <section class="panel project">
+    <h2>O projeto em poucas palavras</h2>
+    <p>Todo jogador de Magic já parou na hora de montar o deck e se perguntou: <b>quantos terrenos eu coloco?</b> A regra de bolso diz “mais ou menos 40% do baralho”, mas será que dá para fazer melhor do que isso? Este projeto nasceu do meu TCC: reuni decks vencedores de torneios e fui atrás do que, de verdade, faz esse número subir ou descer.</p>
+    <p>A técnica é a <b>regressão linear múltipla</b>. Parece coisa de outro mundo, mas a ideia é simples: o computador olha para quase 40 mil decks e descobre quanto cada característica “empurra” a quantidade de terrenos para cima ou para baixo. Entram na conta o custo médio das cartas, quantas cartas baratas compram ou aceleram mana, quantas cores o deck usa, o estilo de jogo (agressivo, controle, combo…) e como cor e estilo se combinam. No fim sai uma fórmula que qualquer deck pode usar.</p>
+    <p>O ponto de partida é o trabalho do Frank Karsten, referência no assunto. Eu acrescentei o arquétipo do deck e o jeito como ele se mistura com as cores, e nos testes o modelo errou menos: cerca de <b>1,31 terreno</b> em média, contra 1,49 do modelo base.</p>
+    <p>Na calculadora você cola a lista, as cartas chegam do Scryfall na hora, e o site ainda diz quantas fontes de cada cor você precisa e deixa você comprar uma mão de teste. Esta página mostra a base que alimentou tudo isso, para você olhar, filtrar e baixar.</p>
+    <p class="projlinks"><a href="index.html"><b>Abrir a calculadora</b></a> · <a href="sobre.html">Ver as equações e a validação</a> · <a href="https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas" target="_blank" rel="noopener">Ler o artigo ↗</a> · <a href="https://github.com/reset-hightide/mtg-lands-calculator" target="_blank" rel="noopener">Código no GitHub ↗</a></p>
+  </section>
+
   <section class="panel">
     <div id="summary" class="grid"></div>
     <div class="filters" style="margin-top:14px">
