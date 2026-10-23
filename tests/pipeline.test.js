@@ -230,3 +230,23 @@ test('evaluateDeck: fontes de mana por cor usam os terrenos recomendados arredon
   assert.equal(rows.R.multiPip, 1);
   assert.equal(rows.U.current, 12); assert.equal(rows.R.current, 10);
 });
+
+test('arquétipo automático usa terrenos equivalentes a 60 cartas (Commander com 38 terrenos não vira "Lands")', () => {
+  const r = P.evaluateDeck(deck([['Island', 38], ['Big', 62]], [], { size: 100, colors: 'U' }, 'Sem pistas'), get);
+  assert.notEqual(r.archetype, 'Lands');
+  const r60 = P.evaluateDeck(deck([['Island', 38], ['Big', 22]], [], { size: 60, colors: 'U' }, 'Sem pistas'), get);
+  assert.equal(r60.archetype, 'Lands');   // 38 terrenos em 60 cartas continua sendo Lands
+});
+
+test('exemplos: todos os decks têm tamanho coerente e geram lista no formato do Archidekt', () => {
+  global.self = global; require('../js/examples.js');
+  const ex = global.EXAMPLES; assert.equal(ex.length, 6);
+  for (const e of ex) {
+    const main = e.cards.filter(c => !/Sideboard|Maybeboard/.test(c[2])).reduce((a, c) => a + c[0], 0);
+    assert.ok(main === 60 || main === 100, `${e.name}: ${main}`);
+    const text = global.ExamplesText(e, n => ({ name: n, set: 'abc', collector_number: '12' }));
+    const parsed = R.parseDeck(text);
+    assert.equal([...parsed.main.values()].reduce((a, b) => a + b, 0), main);
+  }
+  assert.match(global.ExamplesText(ex[0], () => ({ name: 'Opt', set: 'm21', collector_number: '60' })).split('\n')[0], /^4x Opt \(m21\) 60 \[Threat\]$/);
+});
