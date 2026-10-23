@@ -16,6 +16,7 @@
       [''],
       [{ v: 'Como usar', s: 1 }],
       [{ v: '1) Aba "Cartas": uma linha por carta. Preencha Deck, Quantidade e Carta (nome em inglês, como na Arena/Moxfield). Seção = Main ou Side (vazio = Main). Se o nome do deck ficar vazio, vale o da linha de cima.', s: WRAP }],
+      [{ v: '   Dica: dá para colar direto a lista exportada do Archidekt (More > Export deck > Text) na coluna Carta, linha por linha, como "1x Sol Ring (c21) 263 [Ramp]". Cartas em Maybeboard são ignoradas.', s: WRAP }],
       [{ v: '2) Aba "Decks" (opcional): um deck por linha. Deixe "Auto" onde não souber: o site descobre sozinho. Preencher só ajuda a refinar.', s: WRAP }],
       [{ v: '3) Salve o arquivo e envie no site. Você recebe o número de terrenos recomendado por deck e pode baixar o resultado em Excel.', s: WRAP }],
       [''],
@@ -72,8 +73,18 @@
       }
       for (const m of r.missing) cards.push([r.name, '', m, 'NÃO ENCONTRADA', '', 'ignorada no cálculo']);
     }
+    const COLOR_PT = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' };
+    const src = [['Deck', 'Cor', 'Pips', '% dos pips', 'Fontes pela fórmula', 'Pips da cor na carta que mais exige', 'Faixa da tabela (pips múltiplos)', 'Fontes necessárias', 'Crédito de ramp (criaturas 1/3, artefatos 2/3)', 'Terrenos devem fornecer', 'Fontes nos seus terrenos hoje']];
+    for (const r of results) {
+      if (!r.ok) continue;
+      for (const x of r.sources.rows) {
+        src.push([r.name, COLOR_PT[x.color], { v: fmt(x.pips, 1), s: NUM }, `${Math.round(x.share * 100)}%`, x.byFormula, x.multiPip > 1 ? x.multiPip : 1,
+          x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? String(x.tableRange[0]) : `${x.tableRange[0]}-${x.tableRange[1]}`) : '', x.needed, { v: fmt(x.rampCredit), s: NUM }, x.fromLands, { v: fmt(x.current), s: NUM }]);
+      }
+    }
     return X.writeXlsx([
       { name: 'Resumo', rows: sum, header: true, widths: [30, 14, 12, 18, 18, 14, 14, 12, 12, 14, 11, 9, 12, 24, 9, 70] },
+      { name: 'Fontes de mana', rows: src, header: true, widths: [30, 10, 8, 11, 14, 20, 18, 14, 22, 16, 18] },
       { name: 'Cartas', rows: cards, header: true, widths: [30, 11, 40, 15, 7, 38] },
     ]);
   }

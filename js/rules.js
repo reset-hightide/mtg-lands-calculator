@@ -177,41 +177,75 @@
 
   // ------------------------------------------------------------------ leitura da lista
   /**
-   * Aceita Arena / MTGO / Moxfield / MTG Melee / texto livre.
-   * -> { main: Map(nome -> qtd), side: Map, companionSection: bool }
+   * Remove decorações de exportação do nome da carta e devolve as categorias.
+   * Archidekt: "1x Nome (set) 123 *F* [Ramp,Artifact] ^Buy,#0066ff^"; Arena: "Nome (SET) 123"; Moxfield: "Nome (SET) 123 *F*".
+   * -> { name, categories: [{ name, flags: [] }] }
+   */
+  function splitDecorations(raw) {
+    let s = String(raw).replace(/ /g, ' ').trim();
+    const categories = [];
+    s = s.replace(/\s*\^[^^]*\^\s*$/, '');                                     // ^Buy,#0066ff^ (tag de cor)
+    for (let i = 0; i < 3; i++) {                                              // cada passo remove um bloco no fim; a ordem varia por app
+      const before = s;
+      s = s.replace(/\s*\[([^\]]*)\]\s*$/, (_, inner) => {                    // [Categoria{flag},Outra]
+        for (const part of inner.split(',')) {
+          const flags = [...part.matchAll(/\{([^}]*)\}/g)].map(m => m[1].toLowerCase());
+          const name = part.replace(/\{[^}]*\}/g, '').trim();
+          if (name || flags.length) categories.push({ name, flags });
+        }
+        return '';
+      });
+      s = s.replace(/\s*\*[A-Za-z]{1,3}\*\s*$/, '');                           // *F* (foil), *E* (etched)
+      s = s.replace(/\s+\(([A-Za-z0-9]{2,6})\)(?:\s+[\w★†\-]+)?\s*$/, '');    // (M10) 123
+      if (s === before) break;
+    }
+    return { name: s.replace(/\s+/g, ' ').trim(), categories };
+  }
+
+  /** Seção implícita pelas categorias do Archidekt: 'side' | 'companion' | 'ignore' (maybeboard / fora do deck) | null. */
+  function sectionFromCategories(cats) {
+    const names = cats.map(c => c.name.toLowerCase());
+    if (names.includes('sideboard')) return 'side';
+    if (names.includes('companion')) return 'companion';
+    if (names.includes('maybeboard') || cats.some(c => c.flags.includes('nodeck'))) return 'ignore';
+    return null;
+  }
+
+  /**
+   * Aceita Arena / MTGO / Moxfield / Archidekt / MTG Melee / texto livre.
+   * -> { main: Map(nome -> qtd), side: Map, companionSection: bool, ignored: number }
    */
   function parseDeck(text) {
     const main = new Map(), side = new Map();
-    let section = 'main', explicit = false, seenMain = false, companionSection = false;
+    let section = 'main', explicit = false, seenMain = false, companionSection = false, ignored = 0;
     const add = (m, name, q) => m.set(name, (m.get(name) || 0) + q);
     for (const raw of String(text).split(/\r?\n/)) {
       const line = raw.replace(/ /g, ' ').trim();
       if (!line) { if (!explicit && seenMain && section === 'main') section = 'side'; continue; }
+      if (/^\/\//.test(line)) continue;                                        // comentários ("// Sideboard") de alguns exports
       const h = line.toLowerCase().replace(/:$/, '');
       if (/^(deck|main|maindeck|main deck)(\s*\(\d+\))?$/.test(h)) { section = 'main'; explicit = true; continue; }
       if (/^(sideboard|side)(\s*\(\d+\))?$/.test(h)) { section = 'side'; explicit = true; continue; }
       if (/^companion(\s*\(\d+\))?$/.test(h)) { section = 'companion'; explicit = true; continue; }
       if (/^commander(\s*\(\d+\))?$/.test(h)) { section = 'main'; explicit = true; continue; }
+      if (/^maybeboard(\s*\(\d+\))?$/.test(h)) { section = 'ignore'; explicit = true; continue; }
       // cabeçalhos de grupo por tipo ("Creature (16)", "Land (24)") encerram a seção Companion
       if (/^[a-z][a-z '\-]*\s*\(\d+\)$/.test(h)) { if (section === 'companion') section = 'main'; explicit = true; continue; }
       const m = line.match(/^(SB:\s*)?(\d+)\s*x?\s+(.+)$/i);
       if (!m) continue;
-      const name = cleanName(m[3]);
       const q = parseInt(m[2], 10);
       if (q > 250) continue;   // ex.: "2020 Season Grand Finals" (nome de evento), não é uma carta
-      if (m[1] || section === 'side') add(side, name, q);
-      else if (section === 'companion') { add(side, name, q); companionSection = true; }
+      const { name, categories } = splitDecorations(m[3]);
+      const target = m[1] ? 'side' : (sectionFromCategories(categories) || section);
+      if (target === 'ignore') { ignored += q; continue; }
+      if (target === 'side') add(side, name, q);
+      else if (target === 'companion') { add(side, name, q); companionSection = true; }
       else { add(main, name, q); seenMain = true; }
     }
-    return { main, side, companionSection };
+    return { main, side, companionSection, ignored };
   }
 
-  function cleanName(s) {
-    return s.replace(/\s+\([A-Za-z0-9]{2,6}\)\s*[\w★-]*\s*$/, '')   // "(M10) 123"
-            .replace(/\s*\[[^\]]*\]\s*$/, '')                           // "[Foil]"
-            .replace(/\s*\*[A-Za-z]+\*\s*$/, '')                        // "*F*"
-            .replace(/\s+/g, ' ').trim();
-  }
+  function cleanName(s) { return splitDecorations(s).name; }
 
   // ------------------------------------------------------------------ agregação do deck
   /**
@@ -238,6 +272,98 @@
     };
   }
 
+
+  // ------------------------------------------------------------------ fontes de mana por cor (método dos pips)
+  const COLORS = ['W', 'U', 'B', 'R', 'G'];
+  // fontes mínimas para ter 2/3/4+ pips da mesma cor no turno 3 (tabela do post, faixa mín.–máx.)
+  const MULTI_PIP_TABLE = {
+    small: { 2: [14, 16], 3: [20, 20], 4: [23, 25] },   // 40 e 60 cartas
+    big:   { 2: [22, 26], 3: [28, 30], 4: [32, 32] },   // 100 cartas ("32+")
+  };
+  const RAMP_CREDIT = { creature: 1 / 3, artifact: 2 / 3 };   // post: 0,33 / 0,66 (3 criaturas = 1 fonte; 1 criatura + 1 artefato = 1 fonte)
+
+  function pipsOfCost(cost) {
+    const p = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    for (const m of String(cost || '').matchAll(/\{([^}]+)\}/g)) {
+      const parts = m[1].split('/');
+      const cols = parts.filter(x => x.length === 1 && COLORS.includes(x));
+      if (!cols.length) continue;                    // genérico, X, incolor, neve
+      if (cols.length >= 2) cols.forEach(c => { p[c] += 0.5; });   // híbrido {W/U}: meio pip de cada
+      else p[cols[0]] += 1;                          // {W}, {2/W}, {W/P}
+    }
+    return p;
+  }
+  const frontCost = card => (card.card_faces && card.card_faces[0] ? card.card_faces[0].mana_cost : card.mana_cost) || '';
+  /** Cores que a carta produz: topo da carta ou face escolhida. */
+  function producedOf(card, faceIdx) {
+    if (faceIdx != null) {   // o Scryfall costuma trazer produced_mana só no topo para MDFC
+      const f = card.card_faces && card.card_faces[faceIdx];
+      return (f && f.produced_mana) || card.produced_mana || [];
+    }
+    return card.produced_mana || (card.card_faces && card.card_faces[0] && card.card_faces[0].produced_mana) || [];
+  }
+
+  /** "Free spells" (Force of Will, Solitude...) não contam para a regra de pips múltiplos. */
+  function isFreeSpell(card) {
+    const t = oracleFor(card).toLowerCase();
+    return /rather than pay (this spell's|its) mana cost/.test(t) || ((card.keywords || []).includes('Evoke') && /evoke—exile/.test(t));
+  }
+
+  /**
+   * cards: saída de analyzeEntries().cards. -> pips por cor, maior nº de pips da cor numa só carta, crédito de ramp
+   * (criaturas 1/3 / artefatos 2/3 de fonte por cópia) e fontes já presentes nos terrenos.
+   */
+  function sourcesInfo(cards) {
+    const z = () => ({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+    const pips = z(), maxSingle = z(), rampCredit = z(), landSources = z();
+    for (const c of cards) {
+      if (c.cls.isLand) {
+        for (const col of producedOf(c.card)) if (col in landSources) landSources[col] += c.qty;
+        continue;
+      }
+      const cp = pipsOfCost(frontCost(c.card)), free = isFreeSpell(c.card);
+      for (const col of COLORS) {
+        pips[col] += cp[col] * c.qty;
+        if (!free) maxSingle[col] = Math.max(maxSingle[col], Math.floor(cp[col]));
+      }
+      if (c.cls.mdfc) {   // face terreno do MDFC conta como fonte, com o mesmo peso de terreno
+        const w = MDFC_WEIGHT[c.cls.mdfc];
+        for (const col of producedOf(c.card, 1)) if (col in landSources) landSources[col] += c.qty * w;
+        continue;
+      }
+      const type = frontType(c.card), t = oracleFor(c.card).toLowerCase();
+      const prod = producedOf(c.card);
+      if (prod.length && t.includes('{t}') && /\badd\b/.test(t)) {
+        const credit = type.includes('Creature') ? RAMP_CREDIT.creature : type.includes('Artifact') ? RAMP_CREDIT.artifact : 0;
+        for (const col of prod) if (col in rampCredit) rampCredit[col] += credit * c.qty;
+      }
+    }
+    const totalPips = COLORS.reduce((a, col) => a + pips[col], 0);
+    return { pips, totalPips, maxSingle, rampCredit, landSources };
+  }
+
+  /**
+   * Fontes necessárias por cor: (pips da cor / total de pips) × terrenos, arredondado para cima; com pips múltiplos
+   * (CC, CCC, CCCC) vale o maior entre o resultado e o mínimo da tabela. O crédito de ramp reduz o que os terrenos
+   * precisam fornecer.
+   */
+  function requiredSources(info, lands, size) {
+    const table = size > 80 ? MULTI_PIP_TABLE.big : MULTI_PIP_TABLE.small;
+    const eps = 1e-9;
+    return COLORS.filter(c => info.pips[c] > 0).map(c => {
+      const share = info.pips[c] / info.totalPips;
+      const byFormula = Math.ceil(share * lands - eps);
+      const k = Math.min(4, info.maxSingle[c]);
+      const range = k >= 2 ? table[k] : null;
+      const needed = range ? Math.max(byFormula, range[0]) : byFormula;
+      const credit = info.rampCredit[c];
+      return {
+        color: c, pips: info.pips[c], share, byFormula, multiPip: k >= 2 ? k : 1, tableRange: range, needed,
+        rampCredit: credit, fromLands: Math.max(0, Math.ceil(needed - credit - eps)), current: info.landSources[c],
+      };
+    });
+  }
+
   /** 40 / 60 / 100 pelo total de cartas do main deck. */
   function guessSize(total) { return total <= 50 ? 40 : total <= 80 ? 60 : 100; }
 
@@ -258,6 +384,7 @@
 
   return {
     ARCHETYPES, MODEL, MDFC_WEIGHT, SIZES, predict,
-    classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, analyzeEntries, guessSize, normalizeColors,
+    classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, splitDecorations, sectionFromCategories, analyzeEntries, guessSize, normalizeColors,
+    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell,
   };
 });

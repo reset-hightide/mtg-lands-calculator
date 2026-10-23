@@ -116,6 +116,13 @@ Sideboard
     const excluded = d.excluded || new Set();
     const rows = r.cards.length ? flagged.concat(excluded.size ? [] : []).map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="num">${c.cls.cmc}</td><td>${c.cls.draw ? '<span class="tag draw">compra barata</span>' : ''}${c.cls.ramp ? '<span class="tag ramp">aceleração barata</span>' : ''}${c.cls.mdfc ? `<span class="tag mdfc">MDFC ${c.cls.mdfc === 'mythic' ? 'mítico (0,74)' : '(0,38)'}</span>` : ''}</td><td>${c.cls.draw || c.cls.ramp ? `<input type="checkbox" checked data-i="${i}" data-x="${esc(c.name)}">` : ''}</td></tr>`).join('') : '';
     const exRows = [...excluded].map(n => `<tr><td></td><td>${esc(n)}</td><td></td><td><span class="muted">fora da contagem</span></td><td><input type="checkbox" data-i="${i}" data-x="${esc(n)}"></td></tr>`).join('');
+    const num = x => (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : f1(x));
+    const srcRows = r.sources.rows.map(x => {
+      const gap = x.fromLands - x.current;
+      const hoje = x.current ? `<span class="${gap > 0.5 ? 'neg' : 'pos'}">${num(x.current)}</span>` : '<span class="muted">0</span>';
+      const faixa = x.tableRange ? (x.tableRange[0] === x.tableRange[1] ? `${x.tableRange[0]}` : `${x.tableRange[0]}–${x.tableRange[1]}`) + ` (${x.multiPip >= 4 ? '4+' : x.multiPip} pips)` : '–';
+      return `<tr><td><span class="chip on" data-c="${x.color}" style="cursor:default">${COLOR_NAMES[x.color]}</span></td><td class="num">${num(x.pips)}</td><td class="num">${Math.round(x.share * 100)}%</td><td class="num">${x.byFormula}</td><td class="num">${faixa}</td><td class="num"><b>${x.needed}</b></td><td class="num">${x.rampCredit ? f1(x.rampCredit) : '–'}</td><td class="num"><b>${x.fromLands}</b></td><td class="num">${hoje}</td></tr>`;
+    }).join('');
     const warn = r.warnings.length ? `<p class="warn">${r.warnings.map(esc).join('<br>')}</p>` : '';
     return `<article class="deck">
       <header><h3>${esc(r.name)}</h3><span class="muted small">${r.mainTotal} cartas no main · ${r.pureLands} terrenos + ${f2(r.currentLands - r.pureLands)} de MDFC</span></header>
@@ -135,6 +142,9 @@ Sideboard
         <tr><td class="muted">Aceleração barata (CMC ≤ 2)</td><td class="num">${r.ramp}</td></tr>
         <tr><td class="muted">Número de cores</td><td class="num">${r.inputs.colors}</td></tr>
       </tbody></table>
+      <h3 style="margin-top:18px">Fontes de mana por cor <span class="muted small">(para ${r.sources.lands} terrenos)</span></h3>
+      <table><thead><tr><th>Cor</th><th class="num">Pips</th><th class="num">% dos pips</th><th class="num">Fórmula</th><th class="num">Tabela (pips múltiplos)</th><th class="num">Fontes necessárias</th><th class="num">Crédito de ramp</th><th class="num">Terrenos devem dar</th><th class="num">Nos seus terrenos hoje</th></tr></thead><tbody>${srcRows}</tbody></table>
+      <p class="muted small">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima. Se alguma carta exige 2, 3 ou 4+ pips da cor (exceto free spells), vale no mínimo a tabela. Criaturas que produzem mana valem 1/3 de fonte e artefatos 2/3. Um terreno de duas cores conta como fonte das duas. “Hoje” soma só terrenos que declaram a mana que produzem (fetch lands e similares não entram).</p>
       <details><summary>Cartas que entram na conta (desmarque para tirar da contagem)</summary>
         <table><thead><tr><th>Qtd</th><th>Carta</th><th class="num">CMC</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
       </details>

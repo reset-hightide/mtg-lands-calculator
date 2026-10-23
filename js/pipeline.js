@@ -71,7 +71,7 @@
     if (!cardsRows.length) throw new Error('Não encontrei a aba "Cartas" (ou ela está vazia).');
     const h = headerMap(cardsRows[0], CARD_COLS);
     if (h.card === undefined) throw new Error('A aba "Cartas" precisa de uma coluna chamada "Carta" na primeira linha.');
-    let current = null;
+    let current = null, ignored = 0;
     cardsRows.slice(1).forEach((r, idx) => {
       const rawName = r[h.card];
       if (blank(rawName)) return;
@@ -84,15 +84,19 @@
         const m = name.match(/^(\d+)\s*x?\s+(.+)$/i);
         if (m) { qty = parseInt(m[1], 10); name = m[2]; } else qty = 1;
       }
-      name = Rules.cleanName(name);
+      const dec = Rules.splitDecorations(name);
+      name = dec.name;
+      const catSection = Rules.sectionFromCategories(dec.categories);
       if (!(qty > 0) || qty > 250 || !Number.isInteger(qty)) { warnings.push(`Linha ${idx + 2} da aba Cartas ignorada: quantidade inválida (“${r[h.qty]}”).`); return; }
-      const sec = h.section !== undefined ? sectionOf(r[h.section]) : 'main';
+      if (catSection === 'ignore') { ignored += qty; return; }   // Maybeboard / fora do deck no Archidekt
+      const sec = catSection || (h.section !== undefined ? sectionOf(r[h.section]) : 'main');
       if (sec === null) { warnings.push(`Linha ${idx + 2} da aba Cartas: seção “${r[h.section]}” não reconhecida (use Main ou Side); tratada como Main.`); }
       const section = sec || 'main';
       const target = section === 'main' ? deck.main : deck.side;
       target.set(name, (target.get(name) || 0) + qty);
       if (section === 'companion') deck.companionSection = true;
     });
+    if (ignored) warnings.push(`${ignored} carta(s) marcadas como Maybeboard/fora do deck foram ignoradas.`);
     if (!decks.size) throw new Error('Nenhuma carta encontrada na aba "Cartas".');
     return { decks: [...decks.values()], warnings };
   }
@@ -100,7 +104,7 @@
   /** Converte uma lista colada (texto) em um deck. */
   function deckFromText(text, name, params) {
     const p = Rules.parseDeck(text);
-    return { name: name || 'Meu deck', params: params || {}, main: p.main, side: p.side, companionSection: p.companionSection, rawText: text };
+    return { name: name || 'Meu deck', params: params || {}, main: p.main, side: p.side, companionSection: p.companionSection, ignored: p.ignored, rawText: text };
   }
 
   const allNames = decks => [...new Set(decks.flatMap(d => [...d.main.keys(), ...d.side.keys()]))];
@@ -170,17 +174,20 @@
     if (!entries.length) {
       return { name: deck.name, ok: false, error: 'Nenhuma carta do main deck foi reconhecida.', missing, warnings };
     }
+    if (deck.ignored) warnings.push(`${deck.ignored} carta(s) marcadas como Maybeboard/fora do deck foram ignoradas.`);
     if (missing.length) warnings.push(`${missing.length} carta(s) não encontrada(s) no Scryfall e ignoradas: ${missing.join(', ')}.`);
 
     const inputs = { cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, companion, colors: colors.length, archetype, size };
     const pred = Rules.predict(inputs);
     const rmse = Rules.MODEL.testRmse;
+    const info = Rules.sourcesInfo(agg.cards);
+    const sources = { lands: Math.round(pred.lands), totalPips: info.totalPips, rows: Rules.requiredSources(info, Math.round(pred.lands), size) };
     return {
       name: deck.name, ok: true, inputs, colorsList: colors, size, sizeSource, archetype, archetypeSource, companion, companionSource, colorsSource,
       cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, mainTotal, pureLands: agg.pureLands, currentLands: agg.currentLands,
       nonmythic: agg.nonmythic, mythic: agg.mythic,
       lands: pred.lands, rounded: Math.round(pred.lands), karsten: pred.karsten, low: pred.lands - rmse, high: pred.lands + rmse,
-      delta: pred.lands - agg.currentLands, cards: agg.cards, missing, warnings,
+      delta: pred.lands - agg.currentLands, cards: agg.cards, sources, missing, warnings,
     };
   }
 
