@@ -207,6 +207,7 @@
     const names = cats.map(c => c.name.toLowerCase());
     if (names.includes('sideboard')) return 'side';
     if (names.includes('companion')) return 'companion';
+    if (names.includes('commander')) return 'commander';
     if (names.includes('maybeboard') || cats.some(c => c.flags.includes('nodeck'))) return 'ignore';
     return null;
   }
@@ -216,18 +217,18 @@
    * -> { main: Map(nome -> qtd), side: Map, companionSection: bool, ignored: number }
    */
   function parseDeck(text) {
-    const main = new Map(), side = new Map();
+    const main = new Map(), side = new Map(), commanders = new Map();
     let section = 'main', explicit = false, seenMain = false, companionSection = false, ignored = 0;
     const add = (m, name, q) => m.set(name, (m.get(name) || 0) + q);
     for (const raw of String(text).split(/\r?\n/)) {
       const line = raw.replace(/ /g, ' ').trim();
-      if (!line) { if (!explicit && seenMain && section === 'main') section = 'side'; continue; }
+      if (!line) { if (section === 'commander') section = 'main'; else if (!explicit && seenMain && section === 'main') section = 'side'; continue; }
       if (/^\/\//.test(line)) continue;                                        // comentários ("// Sideboard") de alguns exports
       const h = line.toLowerCase().replace(/:$/, '');
       if (/^(deck|main|maindeck|main deck)(\s*\(\d+\))?$/.test(h)) { section = 'main'; explicit = true; continue; }
       if (/^(sideboard|side)(\s*\(\d+\))?$/.test(h)) { section = 'side'; explicit = true; continue; }
       if (/^companion(\s*\(\d+\))?$/.test(h)) { section = 'companion'; explicit = true; continue; }
-      if (/^commander(\s*\(\d+\))?$/.test(h)) { section = 'main'; explicit = true; continue; }
+      if (/^commander(\s*\(\d+\))?$/.test(h)) { section = 'commander'; explicit = true; continue; }
       if (/^maybeboard(\s*\(\d+\))?$/.test(h)) { section = 'ignore'; explicit = true; continue; }
       // cabeçalhos de grupo por tipo ("Creature (16)", "Land (24)") encerram a seção Companion
       if (/^[a-z][a-z '\-]*\s*\(\d+\)$/.test(h)) { if (section === 'companion') section = 'main'; explicit = true; continue; }
@@ -240,32 +241,34 @@
       if (target === 'ignore') { ignored += q; continue; }
       if (target === 'side') add(side, name, q);
       else if (target === 'companion') { add(side, name, q); companionSection = true; }
+      else if (target === 'commander') add(commanders, name, q);
       else { add(main, name, q); seenMain = true; }
     }
-    if (!main.size && !side.size) return parseNamesOnly(text);
-    return { main, side, companionSection, ignored };
+    if (!main.size && !side.size && !commanders.size) return parseNamesOnly(text);
+    return { main, side, commanders, companionSection, ignored };
   }
 
   /** Lista sem quantidades (um nome de carta por linha): cada linha vale 1 cópia; repetidas somam. */
   function parseNamesOnly(text) {
-    const main = new Map(), side = new Map();
+    const main = new Map(), side = new Map(), commanders = new Map();
     const lines = String(text).split(/\r?\n/).map(l => l.replace(/\u00a0/g, ' ').trim()).filter(l => l && !/^\/\//.test(l));
     const header = /^(deck|main|maindeck|main deck|sideboard|side|companion|commander|maybeboard)(\s*\(\d+\))?:?$/i;
     const looksLikeName = l => l.length <= 60 && !/[.!?;]$/.test(l);
     const cards = lines.filter(l => !header.test(l));
-    if (cards.length < 3 || cards.filter(looksLikeName).length / cards.length < 0.7) return { main, side, companionSection: false, ignored: 0 };
-    let section = 'main', companionSection = false, ignored = 0;
+    if (cards.length < 3 || cards.filter(looksLikeName).length / cards.length < 0.7) return { main, side, commanders, companionSection: false, ignored: 0 };
+    let section = 'main', companionSection = false, ignored = 0, cmdLeft = 0;
     const add = (m, n) => m.set(n, (m.get(n) || 0) + 1);
     for (const l of lines) {
       const h = l.toLowerCase().replace(/:$/, '');
-      if (header.test(l)) { section = /^(sideboard|side)/.test(h) ? 'side' : /^companion/.test(h) ? 'companion' : /^maybeboard/.test(h) ? 'ignore' : 'main'; continue; }
+      if (header.test(l)) { section = /^(sideboard|side)/.test(h) ? 'side' : /^companion/.test(h) ? 'companion' : /^maybeboard/.test(h) ? 'ignore' : /^commander/.test(h) ? 'commander' : 'main'; cmdLeft = section === 'commander' ? 2 : 0; continue; }
       if (!looksLikeName(l)) continue;
       const { name, categories } = splitDecorations(l);
       const target = sectionFromCategories(categories) || section;
       if (target === 'ignore') { ignored++; continue; }
-      if (target === 'side') add(side, name); else if (target === 'companion') { add(side, name); companionSection = true; } else add(main, name);
+      if (target === 'commander') { add(commanders, name); if (--cmdLeft <= 0) section = 'main'; }
+      else if (target === 'side') add(side, name); else if (target === 'companion') { add(side, name); companionSection = true; } else add(main, name);
     }
-    return { main, side, companionSection, ignored };
+    return { main, side, commanders, companionSection, ignored };
   }
 
   function cleanName(s) { return splitDecorations(s).name; }
@@ -281,7 +284,7 @@
     for (const e of entries) {
       const cls = classifyCard(e.card);
       total += e.qty;
-      cards.push({ name: e.card.name, qty: e.qty, cls, card: e.card });
+      cards.push({ name: e.card.name, qty: e.qty, cls, card: e.card, commander: !!e.commander });
       if (cls.isLand) { pureLands += e.qty; continue; }
       sumCmc += cls.cmc * e.qty; spells += e.qty;
       if (cls.draw) draw += e.qty;
@@ -336,19 +339,74 @@
     return ['W', 'U', 'B', 'R', 'G'];
   }
 
-  /** "Free spells" (Force of Will, Fireblast, Solitude...): podem ser lançadas sem pagar o custo, então não entram na conta das fontes de mana. */
+  /**
+   * Free spell por custo alternativo: dá para lançar sem pagar o custo de mana ("rather than pay this spell's mana cost":
+   * Force of Will, Fireblast, Daze, Snuff Out, Gush...), evoke com exílio (Solitude, Fury...) ou "cast this spell without
+   * paying its mana cost". Os símbolos de mana dessas cartas não entram na conta das fontes.
+   */
   function isFreeSpell(card) {
     const t = oracleFor(card).toLowerCase();
-    return /rather than pay (this spell's|its) mana cost/.test(t) || ((card.keywords || []).includes('Evoke') && /evoke—exile/.test(t));
+    return /rather than pay (this spell's|its) mana cost/.test(t) || /you may cast this spell without paying its mana cost/.test(t)
+      || ((card.keywords || []).includes('Evoke') && /evoke—exile/.test(t));
+  }
+
+  /**
+   * "Cheat": carta que põe permanentes da mão no campo sem pagar (Show and Tell, Braids, Sneak Attack, Through the Breach,
+   * Kaalia, Eureka, Elvish Piper...). Devolve o conjunto de tipos que ela libera, ou null se não é um cheat.
+   */
+  const CHEAT_RE = /put (?:up to [a-z]+ |an? |any number of |each |all )?([^.;:]*?)cards? from (?:your|their|a|that player's|an opponent's)? ?hand onto the battlefield/;
+  const CHEAT_TYPES = ['artifact', 'creature', 'enchantment', 'land', 'planeswalker', 'battle'];
+  function cheatTypes(card) {
+    const m = oracleFor(card).toLowerCase().match(CHEAT_RE);
+    if (!m) return null;
+    const said = m[1];
+    let types = /\bpermanent\b/.test(said) ? CHEAT_TYPES.slice() : CHEAT_TYPES.filter(x => said.includes(x));
+    if (!types.length) types = ['creature'];                      // "Angel, Demon, or Dragon card": subtipos de criatura
+    types = types.filter(x => x !== 'land');                      // pôr terreno não custa mana: não muda nada
+    return types.length ? new Set(types) : null;
+  }
+
+  /**
+   * Quais cartas do deck são free spells: (1) custo alternativo/evoke; (2) cartas "cheatadas": havendo um cheat no deck
+   * (inclusive o comandante) que custa N, as cartas de CMC >= max(5, N + 1) dos tipos que ele libera entram de graça
+   * (ex.: Braids custa 4, então cartas de custo 5+ saem de graça). `override` (Map nome -> bool) deixa o usuário corrigir.
+   * -> { names: Set dos que ficam fora da conta, list: [{ name, qty, cmc, auto, on, by }], enablers: [{ name, cmc, types }] }
+   */
+  function freeSpellInfo(cards, override) {
+    const enablers = [];
+    for (const c of cards) {
+      if (c.cls.isLand) continue;
+      const types = cheatTypes(c.card);
+      if (types) enablers.push({ name: c.name, cmc: c.cls.cmc, types: [...types] });
+    }
+    const names = new Set(), list = [];
+    for (const c of cards) {
+      if (c.cls.isLand) continue;
+      let auto = false, by = null;
+      if (isFreeSpell(c.card)) { auto = true; by = 'custo alternativo'; }
+      else {
+        const type = frontType(c.card).toLowerCase();
+        for (const en of enablers) {
+          if (en.name === c.name || c.cls.cmc < Math.max(5, en.cmc + 1)) continue;
+          if (en.types.some(t => type.includes(t))) { auto = true; by = en.name; break; }
+        }
+      }
+      const has = !!override && override.has(c.name);
+      const on = has ? !!override.get(c.name) : auto;
+      if (auto || has) list.push({ name: c.name, qty: c.qty, cmc: c.cls.cmc, auto, on, by });
+      if (on) names.add(c.name);
+    }
+    return { names, list, enablers };
   }
 
   /**
    * cards: saída de analyzeEntries().cards. -> pips por cor, maior nº de pips da cor numa só carta, crédito de ramp
    * (criaturas 1/3 / artefatos 2/3 de fonte por cópia) e fontes já presentes nos terrenos.
    */
-  function sourcesInfo(cards) {
+  function sourcesInfo(cards, opts) {
     const z = () => ({ W: 0, U: 0, B: 0, R: 0, G: 0 });
     const pips = z(), maxSingle = z(), rampCredit = z(), landSources = z();
+    const free = freeSpellInfo(cards, opts && opts.free);
     for (const c of cards) {
       if (c.cls.isLand) {
         const prod = producedOf(c.card);
@@ -356,7 +414,7 @@
         for (const col of cols) if (col in landSources) landSources[col] += c.qty;
         continue;
       }
-      if (isFreeSpell(c.card)) continue;   // free spell: nem pips nem regra de pips múltiplos
+      if (free.names.has(c.name)) continue;   // free spell: nem pips nem regra de pips múltiplos
       const cp = pipsOfCost(frontCost(c.card));
       for (const col of COLORS) {
         pips[col] += cp[col] * c.qty;
@@ -375,7 +433,7 @@
       }
     }
     const totalPips = COLORS.reduce((a, col) => a + pips[col], 0);
-    return { pips, totalPips, maxSingle, rampCredit, landSources };
+    return { pips, totalPips, maxSingle, rampCredit, landSources, free };
   }
 
   /**
@@ -391,10 +449,12 @@
       const byFormula = Math.ceil(share * lands - eps);
       const k = Math.min(4, info.maxSingle[c]);
       const range = k >= 2 ? table[k] : null;
-      const needed = range ? Math.max(byFormula, range[0]) : byFormula;
+      const cap = Math.max(1, Math.round(lands));   // não existem mais fontes do que terrenos
+      const raw = range ? Math.max(byFormula, range[0]) : byFormula;
+      const needed = Math.min(raw, cap), capped = raw > cap;
       const credit = info.rampCredit[c];
       return {
-        color: c, pips: info.pips[c], share, byFormula, multiPip: k >= 2 ? k : 1, tableRange: range, needed,
+        color: c, pips: info.pips[c], share, byFormula, multiPip: k >= 2 ? k : 1, tableRange: range, needed, capped,
         rampCredit: credit, fromLands: Math.max(0, Math.ceil(needed - credit - eps)), current: info.landSources[c],
       };
     });
@@ -408,7 +468,7 @@
   function drawHand(cards, n, rng) {
     rng = rng || Math.random;
     const pool = [];
-    for (const c of cards) for (let i = 0; i < c.qty; i++) pool.push(c);
+    for (const c of cards) if (!c.commander) for (let i = 0; i < c.qty; i++) pool.push(c);   // o comandante fica na zona de comando
     n = Math.min(n == null ? 7 : n, pool.length);
     for (let i = 0; i < n; i++) {   // Fisher–Yates parcial
       const j = i + Math.floor(rng() * (pool.length - i));
@@ -451,6 +511,6 @@
   return {
     ARCHETYPES, MODEL, MDFC_WEIGHT, SIZES, predict,
     classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, splitDecorations, sectionFromCategories, analyzeEntries, guessSize, normalizeColors,
-    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, fetchColors, drawHand, handLandOdds,
+    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, freeSpellInfo, cheatTypes, fetchColors, drawHand, handLandOdds,
   };
 });

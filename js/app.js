@@ -188,17 +188,23 @@
   }
 
   /** Mão inicial de 7 cartas do primeiro deck analisado, com contagem de terrenos, média das mãos e chances exatas. */
+  const fanSubDefault = $('fanSub').innerHTML;
   function showHand(newDeck) {
     const r = state.results.find(x => x.ok);
     if (!r) return;
-    const total = r.cards.reduce((a, c) => a + c.qty, 0);
+    const lib = r.cards.filter(c => !c.commander), cmdr = r.cards.filter(c => c.commander);   // comandante fica fora da biblioteca
+    const total = lib.reduce((a, c) => a + c.qty, 0);
     const key = `${r.name}|${total}|${r.pureLands}`;
     if (newDeck || key !== state.handKey) { state.hands = []; state.handKey = key; }
-    $('cardstage').classList.remove('hidden');
+    $('cardstage').classList.remove('hidden'); $('btnGrimoire').classList.remove('hidden');
     const { hand, lands } = Rules.drawHand(r.cards, 7);
-    state.hands.push(lands);
+    state.hands.push(lands); state.lastHand = hand.map(h => h.name);   // o playtest começa com esta mesma mão
     $('fanTitle').textContent = `Sua mão inicial${state.results.length > 1 ? ` (${r.name})` : ''}`;
     $('fan').innerHTML = fanHtml(hand.map(h => ({ name: h.name, img: h.card.img, uri: h.card.uri, isLand: h.cls.isLand })));
+    const cz = $('cmdzone');
+    cz.innerHTML = cmdr.map(c => { const img = c.card.img ? `<img src="${esc(c.card.img)}" alt="${esc(c.name)}" loading="lazy" width="488" height="680">` : `<div class="noimg">${esc(c.name)}</div>`; return `<a class="cmdcard" href="${esc(c.card.uri || '#')}" target="_blank" rel="noopener" title="${esc(c.name)} · zona de comando (abrir no Scryfall)">${img}<span class="cmdlabel">Comandante</span></a>`; }).join('');
+    cz.classList.toggle('hidden', !cmdr.length);
+    $('fanSub').innerHTML = cmdr.length ? `Sete cartas aleatórias do baralho, como numa partida. <b>O comandante fica na zona de comando, ao lado da mão</b>, e não entra no sorteio: as cartas saem das outras ${total}. <b>Clique em qualquer carta da mão para comprar outra</b>.` : fanSubDefault;
     dealAnimation();
     const verdict = lands <= 1 ? 'poucos terrenos: mão arriscada (considere um mulligan)' : lands >= 5 ? 'muitos terrenos: mão pesada (considere um mulligan)' : 'quantidade de terrenos boa para manter';
     $('fanInfo').textContent = `${lands} terreno(s) e ${7 - lands} mágica(s): ${verdict}.`;
@@ -212,9 +218,11 @@
     const odds = Rules.handLandOdds(total, r.pureLands, 7), max = Math.max(...odds, 1e-9);
     $('odds').innerHTML = odds.map((p, k) => `<div class="oc"><span class="op">${Math.round(p * 100)}%</span><div class="ob${k >= 2 && k <= 4 ? ' keep' : ''}${k === lands ? ' now' : ''}" style="height:${Math.max(3, Math.round(100 * p / max))}%"></div><span class="ol">${k}</span></div>`).join('');
     const keepP = odds.slice(2, 5).reduce((a, b) => a + b, 0), lowP = odds[0] + odds[1], highP = odds.slice(5).reduce((a, b) => a + b, 0);
-    $('oddsNote').textContent = `Com ${r.pureLands} terrenos em ${total} cartas: ${Math.round(keepP * 100)}% de chance de vir 2 a 4 terrenos (mão boa de manter), ${Math.round(lowP * 100)}% de vir 0 ou 1 e ${Math.round(highP * 100)}% de vir 5 ou mais. A barra com contorno dourado é a mão que você acabou de comprar.`;
+    $('oddsNote').textContent = `Com ${r.pureLands} terrenos em ${total} cartas${cmdr.length ? ' (fora o comandante)' : ''}: ${Math.round(keepP * 100)}% de chance de vir 2 a 4 terrenos (mão boa de manter), ${Math.round(lowP * 100)}% de vir 0 ou 1 e ${Math.round(highP * 100)}% de vir 5 ou mais. A barra com contorno dourado é a mão que você acabou de comprar.`;
   }
   $('btnFan').onclick = () => showHand(false);
+  const startPlaytest = () => { const r = state.results.find(x => x.ok); if (r) Playtest.open(r.cards, { hand: state.lastHand }); };
+  $('btnGrimoire').onclick = startPlaytest;
   // clicar em qualquer carta da mão compra outra mão (o "↗" abre a carta no Scryfall)
   $('fan').addEventListener('click', e => { if (e.target.closest('.fx')) return; if (e.target.closest('.fc')) showHand(false); });
   $('fan').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('fc')) { e.preventDefault(); showHand(false); } });
@@ -254,6 +262,13 @@
     const excluded = d.excluded || new Set();
     const rows = flagged.map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="cost">${Mana.cost(frontCost(c.card), 15)}</td><td>${c.cls.draw ? '<span class="tag draw">compra barata</span>' : ''}${c.cls.ramp ? '<span class="tag ramp">aceleração barata</span>' : ''}${c.cls.mdfc ? `<span class="tag mdfc">MDFC ${c.cls.mdfc === 'mythic' ? 'mítico (0,74)' : '(0,38)'}</span>` : ''}</td><td>${c.cls.draw || c.cls.ramp ? `<input type="checkbox" checked data-i="${i}" data-x="${esc(c.name)}">` : ''}</td></tr>`).join('');
     const exRows = [...excluded].map(n => `<tr><td></td><td>${esc(n)}</td><td></td><td><span class="muted">fora da contagem</span></td><td><input type="checkbox" data-i="${i}" data-x="${esc(n)}"></td></tr>`).join('');
+    const fr = r.free || { list: [], enablers: [] };
+    const freeRows = fr.list.map(f => `<tr><td>${f.qty}</td><td>${esc(f.name)}</td><td class="num">${f.cmc}</td><td>${f.by === 'custo alternativo' ? '<span class="tag draw">custo alternativo</span>' : `<span class="tag ramp">entra de graça com ${esc(f.by || 'um cheat')}</span>`}</td><td><input type="checkbox" ${f.on ? 'checked ' : ''}data-i="${i}" data-f="${esc(f.name)}"></td></tr>`).join('');
+    const enablerNote = fr.enablers.length ? `<p class="muted small">Põem cartas da mão no jogo sem pagar: <b>${fr.enablers.map(e => esc(e.name)).join(', ')}</b>. Com ${fr.enablers.length > 1 ? 'elas' : 'ela'} no deck, cartas de custo ${Math.max(5, Math.min(...fr.enablers.map(e => e.cmc)) + 1)}+ dos tipos liberados são tratadas como free spells.</p>` : '';
+    const freeBlock = (fr.list.length || fr.enablers.length) ? `<details class="more"><summary>Free spells fora da conta das fontes <span class="hint">(${fr.list.filter(f => f.on).length} carta(s); marque ou desmarque para corrigir)</span></summary><div class="inner">
+        <p class="muted small">Free spell é a carta que dá para jogar sem pagar o custo de mana (Force of Will, Fireblast, Solitude…) ou que entra no jogo de graça por um cheat (Show and Tell, Braids, Sneak Attack…). Os símbolos de mana dela não contam para as fontes de cada cor.</p>${enablerNote}
+        ${freeRows ? `<table><thead><tr><th>Qtd</th><th>Carta</th><th class="num">Custo</th><th>Por quê</th><th>Fora da conta?</th></tr></thead><tbody>${freeRows}</tbody></table>` : ''}
+      </div></details>` : '';
     const warn = r.warnings.length ? `<p class="warn">${r.warnings.map(esc).join('<br>')}</p>` : '';
     const advice = Pipeline.adviceFor(r).map(a => `<li class="${a.kind === 'todo' ? 'todo-fix' : ''}">${esc(a.text)}</li>`).join('');
     const pills = r.sources.rows.map(x => `<span class="pill">${Mana.icon(x.color, 26)}<b>${x.needed}</b><small>fontes de ${COLOR_NAMES[x.color].toLowerCase()}</small></span>`).join('');
@@ -294,7 +309,7 @@
 
       <details class="more"><summary>Como calculamos as fontes <span class="hint">(fórmula e tabela por cor)</span></summary><div class="inner">
         <table><thead><tr><th>Cor</th><th class="num">Pips</th><th class="num">% dos pips</th><th class="num">Fórmula</th><th class="num">Tabela (pips múltiplos)</th><th class="num">Necessárias</th><th class="num">Crédito de ramp</th><th class="num">Terrenos devem dar</th><th class="num">Hoje</th></tr></thead><tbody>${srcTable}</tbody></table>
-        <p class="muted small">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3. Fetch lands (Scalding Tarn, Evolving Wilds…) puxam a cor que você precisar, então contam como fonte das cinco cores.</p>
+        <p class="muted small">Fontes = (pips da cor ÷ total de pips) × terrenos, arredondado para cima; pips múltiplos (CC, CCC…) seguem a tabela; criaturas valem 1/3 de fonte e artefatos 2/3; free spells ficam fora; o resultado nunca passa do total de terrenos. Fetch lands (Scalding Tarn, Evolving Wilds…) puxam a cor que você precisar, então contam como fonte das cinco cores.</p>
       </div></details>
 
       <details class="more"><summary>Números do modelo <span class="hint">(faixa de erro, Karsten, CMC)</span></summary><div class="inner">
@@ -306,6 +321,8 @@
         </div></div></details>
 
       ${adjust}
+
+      ${freeBlock}
 
       <details class="more"><summary>Cartas que entram na conta <span class="hint">(desmarque para tirar da contagem)</span></summary><div class="inner">
         <table><thead><tr><th>Qtd</th><th>Carta</th><th>Custo</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
@@ -343,6 +360,7 @@ terrenos = (${r.size}/60)·base − ${-M.draw}·${r.draw} − ${-M.ramp}·${r.ra
       if (state.mode === 'paste' && t.dataset.k === 'archetype') $('optArch').value = t.value;   // mantém o campo de Ajustes igual
       recalc();
     }
+    else if (t.dataset.f !== undefined) { d.freeOverride = d.freeOverride || new Map(); d.freeOverride.set(t.dataset.f, t.checked); recalc(); }
     else if (t.dataset.x !== undefined) {
       d.excluded = d.excluded || new Set();
       if (t.checked) d.excluded.delete(t.dataset.x); else d.excluded.add(t.dataset.x);

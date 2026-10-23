@@ -36,6 +36,7 @@
     if (!f || /^(main|maindeck|principal|deck|mainboard)$/.test(f)) return 'main';
     if (/^(side|sideboard|sb|reserva|banco)$/.test(f)) return 'side';
     if (/^(companion|companheiro)$/.test(f)) return 'companion';
+    if (/^(commander|comandante)$/.test(f)) return 'commander';
     return null;
   }
 
@@ -49,7 +50,7 @@
     const decksRows = findSheet(sheets, 'decks', 'parametros', 'baralhos') || [];
     const decks = new Map();   // nome -> deck
     const ensure = name => {
-      if (!decks.has(name)) decks.set(name, { name, params: {}, main: new Map(), side: new Map(), companionSection: false });
+      if (!decks.has(name)) decks.set(name, { name, params: {}, main: new Map(), side: new Map(), commanders: new Map(), companionSection: false });
       return decks.get(name);
     };
 
@@ -92,7 +93,7 @@
       const sec = catSection || (h.section !== undefined ? sectionOf(r[h.section]) : 'main');
       if (sec === null) { warnings.push(`Linha ${idx + 2} da aba Cartas: seção “${r[h.section]}” não reconhecida (use Main ou Side); tratada como Main.`); }
       const section = sec || 'main';
-      const target = section === 'main' ? deck.main : deck.side;
+      const target = section === 'main' ? deck.main : section === 'commander' ? deck.commanders : deck.side;
       target.set(name, (target.get(name) || 0) + qty);
       if (section === 'companion') deck.companionSection = true;
     });
@@ -104,10 +105,10 @@
   /** Converte uma lista colada (texto) em um deck. */
   function deckFromText(text, name, params) {
     const p = Rules.parseDeck(text);
-    return { name: name || 'Meu deck', params: params || {}, main: p.main, side: p.side, companionSection: p.companionSection, ignored: p.ignored, rawText: text };
+    return { name: name || 'Meu deck', params: params || {}, main: p.main, side: p.side, commanders: p.commanders, companionSection: p.companionSection, ignored: p.ignored, rawText: text };
   }
 
-  const allNames = decks => [...new Set(decks.flatMap(d => [...d.main.keys(), ...d.side.keys()]))];
+  const allNames = decks => [...new Set(decks.flatMap(d => [...d.main.keys(), ...d.side.keys(), ...(d.commanders ? d.commanders.keys() : [])]))];
 
   // ------------------------------------------------------------------ avaliação de um deck
   function spellColors(entries) {
@@ -131,14 +132,15 @@
     const lookup = n => { const c = getCard(n); return c && ex && ex.has(c.name) ? neutral(c) : c; };
     const corrected = [];
     const canon = x => String(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-    for (const [name, qty] of deck.main) {
+    const cmdrs = deck.commanders || new Map();
+    for (const [name, qty, isCmdr] of [...deck.main].map(x => [...x, false]).concat([...cmdrs].map(x => [...x, true]))) {
       const card = lookup(name);
       if (!card) { missing.push(name); continue; }
       if (canon(name) !== canon(card.name) && canon(name) !== canon(String(card.name).split(' // ')[0])) corrected.push(`“${name}” → “${card.name}”`);
-      entries.push({ name, qty, card });
+      entries.push({ name, qty, card, commander: isCmdr });
     }
     const agg = Rules.analyzeEntries(entries);
-    const mainTotal = [...deck.main.values()].reduce((a, b) => a + b, 0);
+    const mainTotal = [...deck.main.values(), ...cmdrs.values()].reduce((a, b) => a + b, 0);   // o comandante conta nas 100 cartas
     const p = deck.params || {};
 
     // tamanho
@@ -184,14 +186,14 @@
     const inputs = { cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, companion, colors: colors.length, archetype, size };
     const pred = Rules.predict(inputs);
     const rmse = Rules.MODEL.testRmse;
-    const info = Rules.sourcesInfo(agg.cards);
+    const info = Rules.sourcesInfo(agg.cards, { free: deck.freeOverride });
     const sources = { lands: Math.round(pred.lands), totalPips: info.totalPips, rows: Rules.requiredSources(info, Math.round(pred.lands), size) };
     return {
       name: deck.name, ok: true, inputs, colorsList: colors, size, sizeSource, archetype, archetypeSource, companion, companionSource, colorsSource,
       cmc: agg.cmc, draw: agg.draw, ramp: agg.ramp, mainTotal, pureLands: agg.pureLands, currentLands: agg.currentLands,
       nonmythic: agg.nonmythic, mythic: agg.mythic,
       lands: pred.lands, rounded: Math.round(pred.lands), karsten: pred.karsten, low: pred.lands - rmse, high: pred.lands + rmse,
-      delta: pred.lands - agg.currentLands, cards: agg.cards, sources, missing, warnings,
+      delta: pred.lands - agg.currentLands, cards: agg.cards, sources, free: info.free, commanders: agg.cards.filter(c => c.commander), missing, warnings,
     };
   }
 
