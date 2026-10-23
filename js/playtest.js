@@ -29,12 +29,12 @@
     const ctx = H.context(); if (!ctx) return null;
     let n = 0; const all = [], cmd = [];
     for (const e of ctx.cards) for (let i = 0; i < e.qty; i++) {
-      const c = { id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(), where: 'lib', x: 0, y: 0, z: 0, tapped: false };
+      const c = { id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(), colors: e.card.colors || [], prof: root.PtFx ? root.PtFx.analyze(e.card) : { type: '' }, where: 'lib', x: 0, y: 0, z: 0, tapped: false };
       if (e.commander) { c.where = 'cmd'; cmd.push(c); } else all.push(c);
     }
     const lib = shuffle(all.slice()), hand = [];
     for (const name of ctx.hand || []) { const i = lib.findIndex(c => c.name === name); if (i >= 0) { const c = lib.splice(i, 1)[0]; c.where = 'hand'; hand.push(c); } }   // começa com a mão que a página mostrou
-    P = { all, lib, hand, table: [], cmd };
+    P = { all, lib, hand, table: [], cmd, gy: [] };
     document.body.classList.add('pt-playing'); H.end.classList.remove('hidden');
     refresh();
     return P;
@@ -42,6 +42,7 @@
   function stop() {
     if (!P) return;
     document.querySelectorAll('.ptcard').forEach(e => e.remove());
+    if (root.PtFx) root.PtFx.fx.clear();   // limpa as marcas de queimado
     P = null; document.body.classList.remove('pt-playing'); H.end.classList.add('hidden');
     H.cmd.querySelectorAll('.cmdcard').forEach(el => { el.style.visibility = ''; });
     H.stopped && H.stopped();
@@ -65,7 +66,7 @@
   function draw() {
     if (!start()) return;
     const c = P.lib.shift();
-    if (!c) return flash('O grimório está vazio.');
+    if (!c) { H.grim.classList.add('empty-shake'); setTimeout(() => H.grim.classList.remove('empty-shake'), 450); return; }   // vazio: o grimório só balança
     c.where = 'hand'; P.hand.push(c); refresh(c.id);
   }
 
@@ -76,9 +77,12 @@
     el.style.width = cardW() + 'px'; el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; el.style.zIndex = c.z; el.classList.toggle('tapped', c.tapped);
     return el;
   }
+  function detach(c) {
+    const a = c.where === 'lib' ? P.lib : c.where === 'hand' ? P.hand : c.where === 'table' ? P.table : c.where === 'gy' ? P.gy : null;
+    if (a && a.indexOf(c) >= 0) a.splice(a.indexOf(c), 1);
+  }
   function leave(c) {
-    const a = c.where === 'lib' ? P.lib : c.where === 'hand' ? P.hand : c.where === 'table' ? P.table : null;
-    if (a) a.splice(a.indexOf(c), 1);
+    detach(c);
     if (c.where === 'table') { const el = document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`); if (el) el.remove(); }
   }
   function toTable(c, x, y) { leave(c); c.where = 'table'; c.x = Math.max(0, Math.min(root.document.documentElement.scrollWidth - cardW(), x)); c.y = Math.max(0, y); c.z = ++zTop; P.table.push(c); tableEl(c); }
@@ -122,20 +126,94 @@
       if (ghost) ghost.remove(); if (el) el.style.opacity = '';
       root.addEventListener('click', ck => { ck.preventDefault(); ck.stopPropagation(); }, { capture: true, once: true });   // o arrasto não pode abrir link nem comprar mão
       setTimeout(() => { dragging = Math.max(0, dragging - 1); }, 80);
-      const x = ev.clientX, y = ev.clientY, px = x + root.scrollX - ox, py = y + root.scrollY - oy, isCmd = P.cmd.includes(c);
-      if (hit(H.grim, x, y)) { if (isCmd) toTable(c, px, py); else toLib(c); }
+      const x = ev.clientX, y = ev.clientY, px = x + root.scrollX - ox, py = y + root.scrollY - oy, isCmd = P.cmd.includes(c), was = c.where;
+      let played = false;
+      if (hit(H.grim, x, y)) { if (isCmd) { toTable(c, px, py); played = was !== 'table'; } else toLib(c); }
       else if (isCmd && hit(H.cmd, x, y)) toCmd(c);
       else if (!isCmd && hit(H.fan, x, y)) toHand(c);
-      else toTable(c, px, py);
+      else { toTable(c, px, py); played = was !== 'table'; }
       refresh();
+      if (played) cast(c, targetAt(x, y, c));   // jogou da mão na mesa: efeito da carta
     };
     root.addEventListener('pointermove', move); root.addEventListener('pointerup', up); root.addEventListener('pointercancel', up);
   }
-  function tap(c) {   // clique vira / desvira; terreno que acabou de virar solta o símbolo da mana
-    c.tapped = !c.tapped; const el = tableEl(c);
-    if (c.tapped && c.land) manaPop(c, el);
+  function tap(c) {   // clique vira / desvira. Fetch land: some e vem outro terreno aleatório no lugar.
+    if (c.prof && c.prof.fetch && root.PtFx && !c.tapped) return crack(c);
+    c.tapped = !c.tapped; tableEl(c);
+    if (c.tapped && (c.land || (c.prof && c.prof.tapMana))) manaPop(c);
+    if (c.tapped && c.land && root.PtFx) root.PtFx.fx.land(c.name, elOf(c));   // terreno virado: efeito discreto pelo nome
   }
-  /** Símbolo(s) de mana da cor que o terreno produz: sobe bem rápido e some. */
+
+  // ------------------------------------------------------------------ efeitos engraçados (por texto/tipo da carta)
+  const FX = () => root.PtFx.fx;
+  const elOf = c => document.querySelector(`.ptcard[data-pid="${c.id}"]:not(.ghost)`);
+  /** Carta sai da mesa com animação (e vai para o cemitério invisível). */
+  function exit(c, how) { const el = elOf(c); detach(c); c.where = 'gy'; if (el) FX().leave(el, how); }
+  function targetAt(x, y, self) {   // carta da mesa embaixo do ponteiro (a de cima)
+    for (const e of document.elementsFromPoint(x, y)) { const t = e.closest && e.closest('.ptcard:not(.ghost)'); if (t) { const k = find(+t.dataset.pid); if (k && k !== self && k.where === 'table') return k; } }
+    return null;
+  }
+  function crack(c) {
+    const lands = P.lib.filter(l => l.land), el = elOf(c);
+    if (!lands.length) { FX().shake(el); return; }
+    const l = lands[rnd(lands.length)], x = c.x, y = c.y;
+    FX().poof(el); exit(c, 'burnaway'); shuffle(P.lib);
+    setTimeout(() => { if (!P) return; toTable(l, x, y); l.tapped = false; FX().pop(tableEl(l)); badge(); }, 380);
+  }
+  /** Custo alternativo de verdade: sacrifica/devolve terrenos da mesa ou exila carta da mão. Sem como pagar: a carta volta para a mão. */
+  function payAlt(c) {
+    const a = c.prof.alt, F = FX(), others = P.table.filter(x => x !== c);
+    if (a.kind === 'sacrifice' || a.kind === 'return') {
+      const pool = others.filter(x => x.prof.land && new RegExp('\\b' + a.type + '\\b', 'i').test(x.prof.type));
+      if (pool.length < a.n) return false;
+      pool.slice(-a.n).forEach(x => { if (a.kind === 'sacrifice') exit(x, 'burnaway'); else { F.poof(elOf(x)); toHand(x); refresh(x.id); } });
+      return true;
+    }
+    const pool = P.hand.filter(x => x.colors.includes(a.color));
+    if (pool.length < a.n) return false;
+    const gone = shuffle(pool.slice()).slice(0, a.n);
+    gone.forEach(x => { const i = P.hand.indexOf(x), fc = H.fan.querySelectorAll('.fc')[i]; if (fc) FX().leave(fc, 'burnaway'); detach(x); x.where = 'gy'; });
+    setTimeout(() => { if (P) refresh(); }, 520);
+    return true;
+  }
+  function cast(c, target) {
+    if (!root.PtFx || !P) return;
+    const p = c.prof, el = elOf(c), F = FX();
+    if (!p || !el) return;
+    if (p.alt && !payAlt(c)) { F.shake(el); setTimeout(() => { if (P && c.where === 'table') { toHand(c); refresh(c.id); } }, 520); return; }
+    let did = false;
+    if (p.wrath) {   // varredor: a mesa treme e o que for do tipo gira para fora da tela
+      did = true; F.quake(); F.crater(el, true); F.flash(); F.gag('gravity', el);   // a página racha e as letras caem
+      P.table.filter(x => x !== c).forEach((x, i) => { if (elOf(x)) setTimeout(() => { if (P && x.where === 'table') exit(x, 'spin'); }, i * 60); });   // a Cólera de Deus acaba com o jogo: leva a mesa inteira
+      setTimeout(() => { if (P) F.gameover(); }, 1500);
+    } else if (p.damage || p.target) {
+      if (p.damage) { F.flash(); did = true; F.scorch(target ? elOf(target) : el, p.damage); }   // chamusca a página
+      if (target) {
+        did = true; const te = elOf(target);
+        if (p.damage) { F.burn(te); F.float(te, '💥'); }
+        if (p.target === 'destroy') exit(target, 'shatter');
+        else if (p.target === 'exile') exit(target, 'burnaway');
+        else if (p.target === 'bounce') { F.poof(te); toHand(target); refresh(target.id); }
+        else if (p.target === 'counter') { F.poof(te); toLib(target); refresh(); }
+        else if (p.target === 'tap') { target.tapped = true; tableEl(target); }
+      }
+    }
+    if (p.draw) { did = true; for (let i = 0; i < p.draw; i++) setTimeout(() => { if (P) draw(); }, 450 * (i + 1)); }
+    if (p.ramp) {   // busca terreno: ele aparece na mesa (virado) ao lado, ou vem para a mão
+      did = true; const lands = shuffle(P.lib.filter(l => l.land)), cw = cardW(); let k = 0;
+      for (let i = 0; i < p.ramp.table && k < lands.length; i++, k++) { const l = lands[k]; toTable(l, c.x + (cw + 10) * (i + 1), c.y); l.tapped = true; F.pop(tableEl(l)); }
+      for (let i = 0; i < p.ramp.hand && k < lands.length; i++, k++) { toHand(lands[k]); refresh(lands[k].id); }
+      badge();
+    }
+    F.title(c.name, el, { damage: !!p.damage });   // efeitos pelas palavras do título
+    if (did || p.alt) setTimeout(() => { if (P && c.where === 'table') exit(c, 'fade'); }, 1900);   // a mágica resolveu: vai para o cemitério
+    else {   // sem efeito de mágica: um efeito por tipo de carta
+      if (p.creature) p.haste ? F.haste(el) : F.zzz(el);
+      if (p.planeswalker) F.gold(el); else if (p.artifact && !p.creature) F.sheen(el); else if (p.enchantment) F.sparkle(el);
+    }
+  }
+
+  /** Símbolo(s) de mana da cor que a carta produz: sobe bem rápido e some. */
   function manaPop(c) {
     const cols = [...new Set(c.produced)].filter(x => 'WUBRGC'.includes(x)).slice(0, 5);
     if (!cols.length || !root.Mana) return;
