@@ -336,7 +336,7 @@
     return ['W', 'U', 'B', 'R', 'G'];
   }
 
-  /** "Free spells" (Force of Will, Solitude...) não contam para a regra de pips múltiplos. */
+  /** "Free spells" (Force of Will, Fireblast, Solitude...): podem ser lançadas sem pagar o custo, então não entram na conta das fontes de mana. */
   function isFreeSpell(card) {
     const t = oracleFor(card).toLowerCase();
     return /rather than pay (this spell's|its) mana cost/.test(t) || ((card.keywords || []).includes('Evoke') && /evoke—exile/.test(t));
@@ -356,10 +356,11 @@
         for (const col of cols) if (col in landSources) landSources[col] += c.qty;
         continue;
       }
-      const cp = pipsOfCost(frontCost(c.card)), free = isFreeSpell(c.card);
+      if (isFreeSpell(c.card)) continue;   // free spell: nem pips nem regra de pips múltiplos
+      const cp = pipsOfCost(frontCost(c.card));
       for (const col of COLORS) {
         pips[col] += cp[col] * c.qty;
-        if (!free) maxSingle[col] = Math.max(maxSingle[col], Math.floor(cp[col]));
+        maxSingle[col] = Math.max(maxSingle[col], Math.floor(cp[col]));
       }
       if (c.cls.mdfc) {   // face terreno do MDFC conta como fonte, com o mesmo peso de terreno
         const w = MDFC_WEIGHT[c.cls.mdfc];
