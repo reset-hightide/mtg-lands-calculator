@@ -17,7 +17,7 @@
   <section class="panel">
     <h2>O que é</h2>
     <p>Uma regressão linear múltipla (mínimos quadrados) que estima a quantidade de terrenos de um deck de Magic a partir de: custo médio de mana das mágicas (CMC), número de mágicas baratas (CMC ≤ 2) de compra de cartas e de aceleração de mana, presença de companion, número de cores, arquétipo e a interação entre número de cores e arquétipo.</p>
-    <p>É a extensão do modelo de Frank Karsten (<a href="https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/" target="_blank" rel="noopener">TCGplayer, 2022</a>) desenvolvida no trabalho “Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas” (Penatti &amp; Costa, 2026).</p>
+    <p>É a extensão do modelo de Frank Karsten (<a href="https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cd1c1a24-d439-4a8e-b369-b936edb0b38a/" target="_blank" rel="noopener">TCGplayer, 2022</a>) desenvolvida no artigo <a href="https://revistaes.com.br/artigos/fatores-associados-a-quantidade-de-terrenos-em-baralhos-de-jogos-estrategicos-de-cartas" target="_blank" rel="noopener">“Fatores associados à quantidade de terrenos em baralhos de jogos estratégicos de cartas”</a> (Penatti &amp; Costa, 2026, Revista E&amp;S, <a href="https://doi.org/10.22167/2675-6528-202601753" target="_blank" rel="noopener">DOI 10.22167/2675-6528-202601753</a>).</p>
     <pre>terrenos(60) = 20,2185 + 1,4316·CMC − 0,2283·compra_barata − 0,2304·aceleração_barata
                + 0,0364·companion + 0,6391·cores + δ(arquétipo) + γ(arquétipo)·cores
 
