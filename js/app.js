@@ -269,6 +269,14 @@
         <p class="muted small">Free spell é a carta que dá para jogar sem pagar o custo de mana (Force of Will, Fireblast, Solitude…) ou que entra no jogo de graça por um cheat (Show and Tell, Braids, Sneak Attack…). Os símbolos de mana dela não contam para as fontes de cada cor.</p>${enablerNote}
         ${freeRows ? `<table><thead><tr><th>Qtd</th><th>Carta</th><th class="num">Custo</th><th>Por quê</th><th>Fora da conta?</th></tr></thead><tbody>${freeRows}</tbody></table>` : ''}
       </div></details>` : '';
+    const ALT_PT = { spectacle: 'spectacle', madness: 'loucura (madness)', evoke: 'evoke', dash: 'dash', blitz: 'blitz', prowl: 'prowl', surge: 'surge', miracle: 'milagre (miracle)', ninjutsu: 'ninjutsu', prototype: 'prototype', bestow: 'bestow', plot: 'plot', suspend: 'suspend', morph: 'cara virada (morph)', flashback: 'flashback', escape: 'escape', unearth: 'unearth', disturb: 'disturb' };
+    const freeNames = (r.free && r.free.names) || new Set();
+    const altCards = r.cards.filter(c => c.cls.alt && !freeNames.has(c.name));
+    const altRows = altCards.map(c => `<tr><td>${c.qty}</td><td>${esc(c.name)}</td><td class="num">${c.cls.cmc}</td><td><span class="tag ramp">${ALT_PT[c.cls.alt.kind] || c.cls.alt.kind} ${esc(c.cls.alt.cost)}</span></td><td class="num">${c.cls.alt.mv}</td><td><input type="checkbox" ${(d.altOverride && d.altOverride.get(c.name) === false) ? '' : 'checked '}data-i="${i}" data-alt="${esc(c.name)}"></td></tr>`).join('');
+    const altBlock = altCards.length ? `<details class="more"><summary>Custos alternativos considerados <span class="hint">(${r.altCount} carta(s) valem o custo menor; desmarque para usar o custo cheio)</span></summary><div class="inner">
+        <p class="muted small">Quando a carta tem um custo alternativo pago da mão (spectacle, loucura/madness, evoke, dash, miracle, ninjutsu, suspend, morph, flashback…), a média de custo usa o menor valor, porque é o que você tende a pagar.</p>
+        <table><thead><tr><th>Qtd</th><th>Carta</th><th class="num">Custo</th><th>Custo alternativo</th><th class="num">Vale</th><th>Usar o alternativo?</th></tr></thead><tbody>${altRows}</tbody></table>
+      </div></details>` : '';
     const warn = r.warnings.length ? `<p class="warn">${r.warnings.map(esc).join('<br>')}</p>` : '';
     const advice = Pipeline.adviceFor(r).map(a => `<li class="${a.kind === 'todo' ? 'todo-fix' : ''}">${esc(a.text)}</li>`).join('');
     const pills = r.sources.rows.map(x => `<span class="pill">${Mana.icon(x.color, 26)}<b>${x.needed}</b><small>fontes de ${COLOR_NAMES[x.color].toLowerCase()}</small></span>`).join('');
@@ -317,12 +325,14 @@
           <div class="kpi main"><span class="k">Terrenos recomendados</span><span class="v">${f2(r.lands)}</span><span class="s">≈ ${r.rounded} · faixa típica ${f1(r.low)} a ${f1(r.high)}</span></div>
           <div class="kpi"><span class="k">Seu deck hoje</span><span class="v">${f2(r.currentLands)}</span><span class="s">${cmp}</span></div>
           <div class="kpi"><span class="k">Karsten (referência)</span><span class="v">${f2(r.karsten)}</span><span class="s">modelo anterior</span></div>
-          <div class="kpi"><span class="k">CMC · compra · ramp</span><span class="v">${f2(r.cmc)}</span><span class="s">${r.draw} compra · ${r.ramp} aceleração${r.freeCount ? ` · ${r.freeCount} free spell(s) valem custo 0` : ''}</span></div>
+          <div class="kpi"><span class="k">CMC · compra · ramp</span><span class="v">${f2(r.cmc)}</span><span class="s">${r.draw} compra · ${r.ramp} aceleração${r.freeCount ? ` · ${r.freeCount} free spell(s) valem custo 0` : ''}${r.altCount ? ` · ${r.altCount} com custo alternativo valem o custo menor` : ''}</span></div>
         </div></div></details>
 
       ${adjust}
 
       ${freeBlock}
+
+      ${altBlock}
 
       <details class="more"><summary>Cartas que entram na conta <span class="hint">(desmarque para tirar da contagem)</span></summary><div class="inner">
         <table><thead><tr><th>Qtd</th><th>Carta</th><th>Custo</th><th>Classificação</th><th>Conta?</th></tr></thead><tbody>${rows}${exRows}</tbody></table>
@@ -360,6 +370,7 @@ terrenos = (${r.size}/60)·base − ${-M.draw}·${r.draw} − ${-M.ramp}·${r.ra
       if (state.mode === 'paste' && t.dataset.k === 'archetype') $('optArch').value = t.value;   // mantém o campo de Ajustes igual
       recalc();
     }
+    else if (t.dataset.alt !== undefined) { d.altOverride = d.altOverride || new Map(); d.altOverride.set(t.dataset.alt, t.checked); recalc(); }
     else if (t.dataset.f !== undefined) { d.freeOverride = d.freeOverride || new Map(); d.freeOverride.set(t.dataset.f, t.checked); recalc(); }
     else if (t.dataset.x !== undefined) {
       d.excluded = d.excluded || new Set();

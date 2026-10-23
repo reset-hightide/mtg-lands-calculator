@@ -71,6 +71,39 @@
     return r1 || r2 || r3 || r4;
   }
 
+  /** Valor de mana de uma string de custo ("{1}{R}" -> 2). Híbrido = 1, {2/W} = 2, Phyrexian = 1, X = 0. */
+  function manaValue(cost) {
+    let v = 0;
+    for (const m of String(cost || '').matchAll(/\{([^}]+)\}/g)) {
+      const x = m[1];
+      if (/^\d+$/.test(x)) v += +x; else if (/^[XYZ]$/.test(x)) v += 0; else if (/^2\//.test(x)) v += 2; else v += 1;
+    }
+    return v;
+  }
+  /**
+   * Custos alternativos que o jogador paga da mão em vez do custo da carta: Spectacle, Madness (loucura), Evoke, Dash, Blitz,
+   * Prowl, Surge, Miracle, Ninjutsu, Prototype, Bestow, Plot, Suspend e Morph/Megamorph/Disguise (cara virada = {3}).
+   * Lidos pela palavra-chave no texto da carta, sem nomes: carta nova com essas palavras entra sozinha. Também vale o menor entre
+   * os custos pagos do cemitério (Flashback, Escape, Unearth, Disturb); custo que não é mana ("Flashback—sacrifique uma
+   * Montanha") vale 0 de mana. Ficam de fora os que só encarecem (Overload, Kicker, Entwine, Awaken).
+   * -> { kind, cost, mv } do mais barato, ou null.
+   */
+  const ALT_KEYWORDS = ['spectacle', 'madness', 'evoke', 'dash', 'blitz', 'prowl', 'surge', 'miracle', 'ninjutsu', 'prototype', 'bestow', 'plot'];
+  const ALT_RES = ALT_KEYWORDS.map(k => [k, new RegExp('(?:^|\\n|, )' + k + '\\s+((?:\\{[^}]+\\})+)', 'i')]);
+  const SUSPEND_RE = /(?:^|\n|, )suspend \d+[—-]((?:\{[^}]+\})+)/i;
+  const MORPH_RE = /(?:^|\n|, )(?:morph|megamorph|disguise)\b/i;
+  const GRAVE_RES = ['flashback', 'escape', 'unearth', 'disturb'].map(k => [k, new RegExp('(?:^|\\n|, )' + k + '(?:\\s+|—)([^\\n(]*)', 'i')]);
+  function altCost(card) {
+    const t = oracleFor(card);
+    let best = null;
+    const take = (kind, cost, mv) => { if (!best || mv < best.mv) best = { kind, cost, mv }; };
+    for (const [kind, re] of ALT_RES) { const m = t.match(re); if (m) take(kind, m[1], manaValue(m[1])); }
+    const su = t.match(SUSPEND_RE); if (su) take('suspend', su[1], manaValue(su[1]));
+    for (const [kind, re] of GRAVE_RES) { const m = t.match(re); if (m && /\S/.test(m[1])) take(kind, m[1].trim().replace(/\.$/, ''), manaValue(m[1])); }
+    if (MORPH_RE.test(t)) take('morph', '{3}', 3);
+    return best;
+  }
+
   /**
    * Classifica uma carta do Scryfall.
    * -> { isLand, mdfc: null|'nonmythic'|'mythic', cmc, draw, ramp }
@@ -78,14 +111,16 @@
   function classifyCard(card) {
     const type = frontType(card);
     const faces = card.card_faces || [];
-    const out = { isLand: type.includes('Land'), mdfc: null, cmc: card.cmc || 0, draw: false, ramp: false };
+    const out = { isLand: type.includes('Land'), mdfc: null, cmc: card.cmc || 0, effCmc: card.cmc || 0, alt: null, draw: false, ramp: false };
     if (out.isLand) return out;
+    const alt = altCost(card);   // custo efetivo = o menor entre o custo da carta e o custo alternativo pago da mão
+    if (alt && alt.mv < out.cmc) { out.effCmc = alt.mv; out.alt = alt; }
     const backIsLand = card.layout === 'modal_dfc' && faces[1] && (faces[1].type_line || '').includes('Land');
     if (backIsLand) out.mdfc = card.rarity === 'mythic' ? 'mythic' : 'nonmythic';
     // Carta com uma face terreno (MDFC ou transform, ex.: Tangled Florahedron, Search for Azcanta) nunca conta como
     // compra/aceleração barata: no Karsten o type_line completo contém "Land" e a carta não é "nonland".
     if (faces.some(f => (f.type_line || '').includes('Land'))) return out;
-    if (out.cmc > 2) return out;
+    if (out.effCmc > 2) return out;
     const t = oracleFor(card).toLowerCase();
     const creature = type.includes('Creature');
     out.draw = isCheapDraw(t, creature);
@@ -284,11 +319,12 @@
     let sumCmc = 0, spells = 0, draw = 0, ramp = 0, pureLands = 0, mdfcLands = 0, nonmythic = 0, mythic = 0, total = 0;
     const cards = entries.map(e => ({ name: e.card.name, qty: e.qty, cls: classifyCard(e.card), card: e.card, commander: !!e.commander }));
     const free = freeSpellInfo(cards, opts && opts.free).names;
+    const useAlt = c => !!c.cls.alt && !(opts && opts.alt && opts.alt.get(c.name) === false);   // o usuário pode desligar carta por carta
     for (const c of cards) {
       const cls = c.cls;
       total += c.qty;
       if (cls.isLand) { pureLands += c.qty; continue; }
-      sumCmc += (free.has(c.name) ? 0 : cls.cmc) * c.qty; spells += c.qty;
+      sumCmc += (free.has(c.name) ? 0 : useAlt(c) ? cls.effCmc : cls.cmc) * c.qty; spells += c.qty;   // free spell vale 0; custo alternativo vale o menor
       if (cls.draw) draw += c.qty;
       if (cls.ramp) ramp += c.qty;
       if (cls.mdfc === 'nonmythic') { nonmythic += c.qty; mdfcLands += c.qty * MDFC_WEIGHT.nonmythic; }
@@ -296,7 +332,7 @@
     }
     return {
       cmc: spells ? sumCmc / spells : 0, draw, ramp, pureLands, nonmythic, mythic, total, spells,
-      currentLands: pureLands + mdfcLands, cards, freeCount: [...free].reduce((a, n) => a + cards.filter(c => c.name === n).reduce((x, c) => x + c.qty, 0), 0),
+      currentLands: pureLands + mdfcLands, cards, altCount: cards.filter(c => useAlt(c) && !free.has(c.name)).reduce((a, c) => a + c.qty, 0), freeCount: [...free].reduce((a, n) => a + cards.filter(c => c.name === n).reduce((x, c) => x + c.qty, 0), 0),
     };
   }
 
@@ -513,6 +549,6 @@
   return {
     ARCHETYPES, MODEL, MDFC_WEIGHT, SIZES, predict,
     classifyCard, oracleFor, suggestArchetype, tccColors, parseDeck, cleanName, splitDecorations, sectionFromCategories, analyzeEntries, guessSize, normalizeColors,
-    pipsOfCost, sourcesInfo, requiredSources, isFreeSpell, freeSpellInfo, cheatTypes, fetchColors, drawHand, handLandOdds,
+    pipsOfCost, manaValue, altCost, sourcesInfo, requiredSources, isFreeSpell, freeSpellInfo, cheatTypes, fetchColors, drawHand, handLandOdds,
   };
 });
