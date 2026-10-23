@@ -2,6 +2,12 @@
 
 ### 👉 Use agora: **https://reset-hightide.github.io/mtg-lands-calculator/**
 
+<p align="center">
+<a href="https://scryfall.com/card/apc/11"><img src="https://cards.scryfall.io/normal/front/c/c/ccca800f-e850-4bec-95d0-70280b51b7a7.jpg" alt="Gerrard Capashen" width="126"></a> <a href="https://scryfall.com/card/inv/237"><img src="https://cards.scryfall.io/normal/front/d/2/d24d441c-f37f-44fe-8a93-f5c89df807e4.jpg" alt="Captain Sisay" width="126"></a> <a href="https://scryfall.com/card/inv/249"><img src="https://cards.scryfall.io/normal/front/8/3/83a4e48d-6452-4245-bdad-63fe3263550e.jpg" alt="Hanna, Ship's Navigator" width="126"></a> <a href="https://scryfall.com/card/all/28"><img src="https://cards.scryfall.io/normal/front/9/a/9a879b60-4381-447d-8a5a-8e0b6a1d49ca.jpg" alt="Force of Will" width="126"></a> <a href="https://scryfall.com/card/exo/114"><img src="https://cards.scryfall.io/normal/front/6/d/6d1682dd-5a99-4bee-a2c2-c8735047e1a9.jpg" alt="Mirri, Cat Warrior" width="126"></a> <a href="https://scryfall.com/card/tmp/33"><img src="https://cards.scryfall.io/normal/front/7/0/7086d077-f083-4870-8b0b-2d34aca49df1.jpg" alt="Orim, Samite Healer" width="126"></a> <a href="https://scryfall.com/card/pls/74"><img src="https://cards.scryfall.io/normal/front/c/1/c1778f37-af01-4f8c-ab9d-a4c60abf7e78.jpg" alt="Tahngarth, Talruum Hero" width="126"></a> 
+</p>
+
+<p align="center"><sub>Gerrard, Sisay, Hanna e a turma da Weatherlight (mais a Force of Will). Imagens e dados das cartas: <a href="https://scryfall.com">Scryfall</a>.</sub></p>
+
 Quantos terrenos o seu deck precisa? E quantas fontes de cada cor? Cole a lista do seu deck, clique em **Calcular** e pronto: a resposta aparece na hora, com os símbolos de mana, as cartas da sua mão inicial e uma explicação em linguagem de gente.
 
 ## Como usar (leva 10 segundos)
@@ -66,7 +72,6 @@ js/xlsx-lite.js    leitura e escrita de .xlsx sem dependências
 js/template.js     template Excel e planilha de resultado
 js/wheel.js        Roda da Fortuna (sorteio do deck de exemplo)
 js/examples.js     decks de exemplo no formato do Archidekt
-js/crew.js         faixa de cartas da Weatherlight (imagens do Scryfall)
 js/mana.js         símbolos de mana
 js/app.js  js/base.js
 img/cena.webp      arte da roda
