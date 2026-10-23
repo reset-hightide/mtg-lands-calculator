@@ -440,19 +440,23 @@ button:focus-visible, a:focus-visible, summary:focus-visible, label.sbtn-dark:fo
 #ptend { position: fixed; right: 12px; bottom: 70px; z-index: 2500; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(24, 17, 40, .92); color: #fff; font: 600 12.5px var(--font); cursor: pointer; }
 #ptend:hover { background: #3a3050; }
 .ptcard { position: absolute; z-index: 3000; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; transition: transform .18s ease; transform-origin: 50% 50%; }
-.ptcard img { display: block; width: 100%; height: auto; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; background: #1a1a1a; box-shadow: 0 8px 18px rgba(0, 0, 0, .55); pointer-events: none; }
+.ptcard img { display: block; width: 100%; height: auto; aspect-ratio: 488 / 680; border-radius: 4.6% / 3.3%; background: #1a1a1a; box-shadow: 0 3px 8px rgba(0, 0, 0, .35); pointer-events: none; }   /* sombra leve: a carta está sobre a mesa */
 .ptcard .ptn { display: grid; place-items: center; aspect-ratio: 488 / 680; padding: 6px; border-radius: 4.6% / 3.3%; background: #2b253a; color: #fff; font-size: 12px; text-align: center; }
 .ptcard.tapped { transform: rotate(90deg); }
-.ptcard.drag { cursor: grabbing; filter: drop-shadow(0 14px 18px rgba(0, 0, 0, .5)); }
+.ptcard.drag { cursor: grabbing; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, .35)); }
 .ptcard.ghost { position: fixed; z-index: 9999; pointer-events: none; opacity: .94; transform: scale(1.05); }
 body.pt-drag, body.pt-drag * { cursor: grabbing !important; }
 /* jogando: o site vira a mesa, então texto e números deixam de ser selecionáveis (campos de texto continuam editáveis) */
 body.pt-playing, body.pt-playing * { -webkit-user-select: none; user-select: none; }
 body.pt-playing textarea, body.pt-playing input, body.pt-playing select { -webkit-user-select: text; user-select: text; }
 .fan.static .fc { opacity: 1 !important; animation: none !important; }
-.fc.fresh { animation: ptdraw .45s cubic-bezier(.2, .8, .2, 1) !important; } @keyframes ptdraw { from { opacity: 0; transform: translate(40vw, -10vh) rotate(18deg) scale(.6); } }
+.fan.static .fc.fresh { animation: ptdraw .55s cubic-bezier(.2, .8, .2, 1) !important; opacity: 1 !important; }
+@keyframes ptdraw { from { opacity: 0; transform: translate(var(--fx, 40vw), var(--fy, -10vh)) rotate(-12deg) scale(.5); } 20% { opacity: 1; } }
+#grimoire.pull { right: -68px; transform: rotate(-9deg); }
+.ptmana { position: absolute; z-index: 6000; display: flex; gap: 4px; pointer-events: none; animation: ptrise .7s ease-out forwards; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5)); }
+@keyframes ptrise { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 18% { opacity: 1; transform: translateY(-4px) scale(1.12); } 100% { opacity: 0; transform: translateY(-66px) scale(1); } }
 body.pt-playing .fc { touch-action: none; cursor: grab; }
 #ptmsg { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 9000; padding: 6px 16px; border-radius: 4px; background: rgba(0, 0, 0, .8); color: #ffe08a; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; }
 #ptmsg.on { opacity: 1; }
 @media (max-width: 760px) { #grimoire { right: -100px; width: 130px; height: 182px; } #grimoire .gb { width: 130px; height: 182px; } #grimoire:hover, #grimoire.on { right: -76px; } }
-@media (prefers-reduced-motion: reduce) { .ptcard, #grimoire, .fc.fresh { transition: none; animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .ptcard, #grimoire { transition: none; } .fan.static .fc.fresh, .ptmana { animation: none !important; } .ptmana { display: none; } }
