@@ -57,7 +57,7 @@
         if (!res.ok) return false;
         const j = await res.json();
         for (const p of j.data || []) consider(p);
-        url = j.has_more ? j.next_page : null; await sleep(110);
+        url = j.has_more ? j.next_page : null;
       }
       return !url;
     };
@@ -65,12 +65,14 @@
     const basics = full.filter(n => BASICS.has(key(n))), rest = full.filter(n => !BASICS.has(key(n)));
     let ok = true;
     try {
-      for (let i = 0; i < rest.length; i += 30) {
-        const q = or(rest.slice(i, i + 30));
-        ok = (await run(q + ' date>=2001-04-11' + PRINT_FILTER + ' prefer:oldest', true)) && ok;
-        ok = (await run(q + ' date<2001-04-11' + PRINT_FILTER + ' prefer:newest', true)) && ok;
+      const jobs = [];   // todas as buscas do lote, rodando 3 por vez (o limite do Scryfall é ~10 por segundo)
+      for (let i = 0; i < rest.length; i += 40) {
+        const q = or(rest.slice(i, i + 40));
+        jobs.push(() => run(q + ' date>=2001-04-11' + PRINT_FILTER + ' prefer:oldest', true), () => run(q + ' date<2001-04-11' + PRINT_FILTER + ' prefer:newest', true));
       }
-      if (basics.length) ok = (await run(or(basics) + ' set:7ed lang:en -is:promo', false)) && ok;
+      if (basics.length) jobs.push(() => run(or(basics) + ' set:7ed lang:en -is:promo', false));
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, async () => { while (next < jobs.length) { if (!(await jobs[next++]())) ok = false; } }));
     } catch (_) { ok = false; }
     if (!ok) return;   // busca incompleta: mantém a impressão padrão e tenta de novo na próxima vez
     for (const [k, c] of mem.entries()) {
