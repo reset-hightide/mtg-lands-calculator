@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sobre o modelo · Calculadora de Terrenos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232b253a'/%3E%3Ccircle cx='14' cy='32' r='5' fill='%23f8f2d0'/%3E%3Ccircle cx='23' cy='32' r='5' fill='%236fb6f0'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239a8dab'/%3E%3Ccircle cx='41' cy='32' r='5' fill='%23ee7b5f'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%236dc98a'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=20261032">
+<link rel="stylesheet" href="css/style.css?v=20261034">
 </head>
 <body>
 <header class="topbar">
@@ -73,7 +73,9 @@ terrenos(N)  = (N/60)·(20,2185 + 1,4316·CMC + Z) − 0,2283·compra_barata −
     <ol>
       <li>Conte os <b>pips</b> (símbolos coloridos do custo de mana) de todas as cartas, incluindo cópias. Híbridos {W/U} valem meio pip de cada cor; {2/W} e Phyrexian valem 1; custo genérico, X e incolor não contam.</li>
       <li><b>Fontes da cor = (pips da cor ÷ total de pips) × número de terrenos</b>, arredondado para cima (ex.: 28 de 36 pips azuis com 20 terrenos = 15,6 → 16 fontes; 8 brancos = 4,4 → 5 fontes).</li>
-      <li><b>Free spells</b> (Force of Will, Fireblast, Solitude…) ficam fora da conta das fontes: como dá para lançá-las sem pagar o custo, os símbolos delas não contam.</li>
+      <li><b>Free spells</b> ficam fora da conta das fontes, porque os símbolos delas não precisam ser pagos. Entram aqui (1) cartas com custo alternativo, como Force of Will, Fireblast, Daze e Snuff Out, e Solitude e companhia (evoke com exílio), e (2) cartas “cheatadas”: se o deck tem algo que põe cartas da mão no jogo de graça (Show and Tell, Braids, Sneak Attack, Kaalia, Eureka… inclusive como comandante) e esse algo custa N, as cartas de custo <b>N + 1 ou mais (e pelo menos 5)</b> dos tipos que ele libera entram como free spells. Exemplo: Braids custa 4, então criaturas, artefatos e encantamentos de custo 5+ saem de graça; Show and Tell, que custa 3, faz o mesmo com Omniscience ou Griselbrand. Dá para corrigir carta por carta na lista “Free spells” do resultado.</li>
+      <li><b>Teto:</b> o número de fontes de uma cor nunca passa do total de terrenos recomendado. Num deck de uma cor só, todos os terrenos são fontes.</li>
+      <li><b>Commander:</b> o comandante conta nas 100 cartas do deck, mas fica na zona de comando, ao lado da mão, e não entra no sorteio da mão (que sai das outras 99).</li>
       <li><b>Pips múltiplos</b>: se alguma carta exige 2, 3 ou 4+ pips da mesma cor, vale no mínimo a tabela abaixo, para garantir esses pips no turno 3.</li>
       <li><b>Outras fontes</b>: criaturas que produzem mana valem 1/3 de fonte (3 criaturas = 1 fonte) e artefatos 2/3 (1 criatura + 1 artefato = 1 fonte); é uma regra de bolso, não ciência exata.</li>
     </ol>
