@@ -35,7 +35,7 @@
     for (const e of ctx.cards) for (let i = 0; i < e.qty; i++) {
       const o = e.card.oracle_text || '';
       const c = {
-        id: ++n, name: e.card.name || e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(),
+        id: ++n, name: e.card.name || e.name, alias: e.name, img: e.card.img, uri: e.card.uri, land: !!e.cls.isLand, produced: (e.card.produced_mana || []).slice(),
         colors: e.card.colors || [], set: e.card.set || '', cmc: e.card.cmc || 0, typeLine: e.card.type_line || '', oracle: o,
         etbTapped: /enters (?:the battlefield )?tapped/i.test(o) && !/unless|you may pay|if you control|if you don't|fewer/i.test(o),
         prof: root.PtFx ? root.PtFx.analyze(e.card) : { type: '', fetchTypes: [] }, where: 'lib', x: 0, y: 0, z: 0, tapped: false,
@@ -43,7 +43,7 @@
       if (e.commander) { c.where = 'cmd'; cmd.push(c); } else all.push(c);
     }
     const lib = shuffle(all.slice()), hand = [];
-    for (const name of ctx.hand || []) { const i = lib.findIndex(c => c.name === name); if (i >= 0) { const c = lib.splice(i, 1)[0]; c.where = 'hand'; hand.push(c); } }   // começa com a mão que a página mostrou
+    for (const name of ctx.hand || []) { const i = lib.findIndex(c => c.name === name || c.alias === name); if (i >= 0) { const c = lib.splice(i, 1)[0]; c.where = 'hand'; hand.push(c); } }   // começa com a mão que a página mostrou
     P = { all, lib, hand, table: [], cmd, gy: [], franchise: root.PtFx ? root.PtFx.deckFranchise(all.concat(cmd).map(c => c.set)) : null };
     document.body.classList.add('pt-playing'); H.end.classList.remove('hidden');
     const row = H.fan.parentElement; if (row) row.style.minHeight = row.offsetHeight + 'px';   // jogar cartas não pode encolher a linha da mão: o resto da página não sobe por cima dela
