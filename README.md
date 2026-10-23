@@ -12,6 +12,8 @@ Site estático, sem servidor e sem dependências externas de código: tudo roda 
 | `base.html` | Tabela navegável (filtros, ordenação, download CSV) dos 39.287 decks usados para estimar o modelo. |
 | `sobre.html` | Equações, desempenho, regras de leitura das cartas e limitações. |
 
+Também calcula as **fontes de mana por cor** (método dos pips: pips da cor ÷ total de pips × terrenos, tabela para pips múltiplos e crédito de ramp) e lê listas exportadas do **Archidekt** (`1x Nome (set) 123 *F* [Categoria]`, ignorando Maybeboard), além de Arena, MTGO e Moxfield.
+
 Recursos da calculadora: arquétipo, cores, tamanho do deck e companion detectados automaticamente (e editáveis), faixa típica de erro (±1 RMSE), comparação com o modelo de Karsten, diferença para a quantidade de terrenos atual (MDFC ponderados), lista das cartas contadas como compra/aceleração barata (com opção de tirar cartas da contagem) e download do resultado em Excel.
 
 ## Como as cartas são lidas

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calculadora de Terrenos · Magic: The Gathering</title>
-<meta name="description" content="Recomenda quantos terrenos usar no seu deck de Magic com regressão linear múltipla (arquétipo, cores, custo de mana, compra e aceleração baratas).">
+<meta name="description" content="Recomenda quantos terrenos usar no seu deck de Magic e quantas fontes de mana de cada cor.">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,7 +26,7 @@
 
     <div id="paneExcel">
       <ol class="steps">
-        <li><b>Baixe o template</b> e preencha a aba <i>Cartas</i> (e, se quiser, a aba <i>Decks</i>). Vários decks por arquivo.
+        <li><b>Baixe o template</b> e preencha a aba <i>Cartas</i> (e, se quiser, a aba <i>Decks</i>). Vários decks por arquivo. Pode colar linhas exportadas do Archidekt direto na coluna Carta.
           <div class="row"><button id="btnTemplate">Baixar template (.xlsx)</button></div></li>
         <li><b>Envie a planilha preenchida</b> (.xlsx ou .csv).
           <label id="drop" class="drop" for="file">Arraste o arquivo aqui ou clique para escolher<input id="file" type="file" accept=".xlsx,.csv" hidden></label></li>
@@ -36,7 +36,7 @@
     <div id="panePaste" class="hidden">
       <label for="deckName">Nome do deck <span class="muted">(ajuda a identificar arquétipo e cores, ex.: “Izzet Tempo”)</span></label>
       <input id="deckName" type="text" placeholder="Meu deck" maxlength="80">
-      <label for="deckText">Lista (Arena, MTGO, Moxfield…)</label>
+      <label for="deckText">Lista (Arena, MTGO, Moxfield, Archidekt…) <span class="muted">· no Archidekt: More ▸ Export deck ▸ Text</span></label>
       <textarea id="deckText" spellcheck="false" placeholder="4 Llanowar Elves&#10;4 Growth Spiral&#10;20 Forest&#10;&#10;Sideboard&#10;1 Lurrus of the Dream-Den"></textarea>
       <div class="row"><button id="btnPaste">Calcular</button><button id="btnSample" class="ghost">Preencher exemplo</button></div>
     </div>
