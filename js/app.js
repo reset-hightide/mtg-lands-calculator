@@ -172,14 +172,14 @@
       const style = `transform: translateY(${y}px) rotate(${rot}deg); --i: ${i}`;
       const img = c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}" loading="lazy" width="488" height="680">` : `<div class="noimg">${esc(c.name)}</div>`;
       const ext = c.uri ? `<a class="fx" href="${esc(c.uri)}" target="_blank" rel="noopener" title="Abrir ${esc(c.name)} no Scryfall">↗</a>` : '';
-      return `<div class="fc${c.isLand ? ' land' : ''}" style="${style}" role="button" tabindex="0" title="${esc(c.name)} — clique para comprar outra mão">${img}${ext}</div>`;
+      return `<div class="fc${c.isLand ? ' land' : ''}${c.fresh ? ' fresh' : ''}"${c.pid ? ` data-pid="${c.pid}"` : ''} style="${style}" role="button" tabindex="0" title="${esc(c.name)} — clique para comprar outra mão">${img}${ext}</div>`;
     }).join('');
   }
 
   /** Cartas entram da direita para a esquerda, uma a uma (como carteando a mão), quando a seção aparece na tela. */
   function dealAnimation() {
     const fan = $('fan');
-    fan.classList.remove('deal');
+    fan.classList.remove('deal', 'static');
     void fan.offsetWidth;
     const W = window.innerWidth;
     fan.querySelectorAll('.fc').forEach(fc => fc.style.setProperty('--tx', Math.round(W - fc.getBoundingClientRect().left + 80) + 'px'));
@@ -196,11 +196,13 @@
     const total = lib.reduce((a, c) => a + c.qty, 0);
     const key = `${r.name}|${total}|${r.pureLands}`;
     if (newDeck || key !== state.handKey) { state.hands = []; state.handKey = key; }
-    $('cardstage').classList.remove('hidden'); $('btnGrimoire').classList.remove('hidden');
+    Playtest.reset();   // mão nova ou deck novo: o playtest recomeça
+    $('cardstage').classList.remove('hidden'); $('grimoire').classList.remove('hidden');
     const { hand, lands } = Rules.drawHand(r.cards, 7);
     state.hands.push(lands); state.lastHand = hand.map(h => h.name);   // o playtest começa com esta mesma mão
     $('fanTitle').textContent = `Sua mão inicial${state.results.length > 1 ? ` (${r.name})` : ''}`;
-    $('fan').innerHTML = fanHtml(hand.map(h => ({ name: h.name, img: h.card.img, uri: h.card.uri, isLand: h.cls.isLand })));
+    state.lastFan = hand.map(h => ({ name: h.name, img: h.card.img, uri: h.card.uri, isLand: h.cls.isLand }));
+    $('fan').innerHTML = fanHtml(state.lastFan);
     const cz = $('cmdzone');
     cz.innerHTML = cmdr.map(c => { const img = c.card.img ? `<img src="${esc(c.card.img)}" alt="${esc(c.name)}" loading="lazy" width="488" height="680">` : `<div class="noimg">${esc(c.name)}</div>`; return `<a class="cmdcard" href="${esc(c.card.uri || '#')}" target="_blank" rel="noopener" title="${esc(c.name)} · zona de comando (abrir no Scryfall)">${img}<span class="cmdlabel">Comandante</span></a>`; }).join('');
     cz.classList.toggle('hidden', !cmdr.length);
@@ -221,11 +223,16 @@
     $('oddsNote').textContent = `Com ${r.pureLands} terrenos em ${total} cartas${cmdr.length ? ' (fora o comandante)' : ''}: ${Math.round(keepP * 100)}% de chance de vir 2 a 4 terrenos (mão boa de manter), ${Math.round(lowP * 100)}% de vir 0 ou 1 e ${Math.round(highP * 100)}% de vir 5 ou mais. A barra com contorno dourado é a mão que você acabou de comprar.`;
   }
   $('btnFan').onclick = () => showHand(false);
-  const startPlaytest = () => { const r = state.results.find(x => x.ok); if (r) Playtest.open(r.cards, { hand: state.lastHand }); };
-  $('btnGrimoire').onclick = startPlaytest;
+  // playtest em cima do site (easter egg): grimório na borda direita; arrastar cartas da mão para a página
+  Playtest.init({
+    fan: $('fan'), cmd: $('cmdzone'), grim: $('grimoire'), end: $('ptend'),
+    renderFan: cards => { const f = $('fan'); f.innerHTML = fanHtml(cards); f.classList.add('deal', 'static'); },
+    context: () => { const r = state.results.find(x => x.ok); return r ? { cards: r.cards, hand: state.lastHand } : null; },
+    stopped: () => { const f = $('fan'); f.innerHTML = fanHtml(state.lastFan || []); f.classList.add('deal', 'static'); },
+  });
   // clicar em qualquer carta da mão compra outra mão (o "↗" abre a carta no Scryfall)
-  $('fan').addEventListener('click', e => { if (e.target.closest('.fx')) return; if (e.target.closest('.fc')) showHand(false); });
-  $('fan').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('fc')) { e.preventDefault(); showHand(false); } });
+  $('fan').addEventListener('click', e => { if (Playtest.busy() || e.target.closest('.fx')) return; if (e.target.closest('.fc')) showHand(false); });
+  $('fan').addEventListener('keydown', e => { if (!Playtest.busy() && (e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('fc')) { e.preventDefault(); showHand(false); } });
 
   // ------------------------------------------------------------------ resultado
   function sourceCard(x) {
