@@ -34,26 +34,40 @@ test('landScore: duais com tipo básico da melhor para a pior; básicos por últ
   assert.equal(PtFx.colorOfType('Island'), 'U'); assert.equal(PtFx.colorOfType('Mountain'), 'R');
 });
 
-test('castKeys: a cor dá a assinatura; palavras do título trocam ou acrescentam (sem emoji)', () => {
-  const k = (n, c, r) => PtFx.castKeys(n, c, () => r || 0);
-  assert.deepEqual(k('Qualquer Coisa', ['R']), ['bolt']); assert.deepEqual(k('Qualquer Coisa', ['W']), ['divine']);
-  assert.deepEqual(k('Qualquer Coisa', ['U']), ['tide']); assert.deepEqual(k('Qualquer Coisa', ['B']), ['void']);
-  assert.deepEqual(k('Qualquer Coisa', ['G']), ['vines']); assert.deepEqual(k('Qualquer Coisa', []), ['metal']);
-  assert.deepEqual(k('Qualquer Coisa', ['U', 'R'], 0.99), ['bolt']);                       // multicor: sorteia entre as cores
-  assert.deepEqual(k('Lightning Helix', ['W', 'R']), ['bolt']);                              // título manda: Lightning = raio
-  assert.deepEqual(k('Tidal Wave', ['R']), ['tide']); assert.deepEqual(k('Frost Titan', ['U']), ['tide', 'ice']);
-  assert.deepEqual(k('Wild Growth', ['U']), ['vines']);                                     // verde pelo título, mesmo numa carta azul
-  assert.ok(k('Swarm of Locusts', ['G']).includes('zerg'));                                 // carta que ainda vai sair: a regra pega pela palavra
-  const all = PtFx.titleKeys('Thunderstorm Frost Dragon Inferno'); assert.ok(all.length <= 2);
-  for (const key of ['bolt', 'fire', 'tide', 'divine', 'void', 'vines', 'metal']) assert.ok(typeof key === 'string');
+test('castKeys: a variação vem do nome (hash estável) ou de uma palavra do título, dentro da piscina da cor', () => {
+  const k = (n, c) => PtFx.castKeys(n, c);
+  // estável: a mesma carta cai sempre na mesma variação
+  assert.deepEqual(k('Doom Blade', ['B']), k('Doom Blade', ['B']));
+  // sempre uma variação da piscina da cor
+  for (const [c, pool] of Object.entries(PtFx.POOLS)) for (const n of ['Carta Um', 'Carta Dois', 'Outra Carta', 'Mais Uma']) assert.ok(pool.includes(k(n, c === 'C' ? [] : [c])[0]), n + ' ' + c);
+  // palavra do título força a variação (mesmo numa carta de outra cor)
+  assert.equal(k('Lightning Helix', ['W', 'R'])[0], 'bolt'); assert.equal(k('Tidal Wave', ['R'])[0], 'tide'); assert.equal(k('Vampire Nighthawk', ['B'])[0], 'bats');
+  assert.equal(k('Spider Spawning', ['G'])[0], 'web'); assert.equal(k('Inkmoth Nexus', [])[0], 'ink'); assert.equal(k('Wild Growth', ['U'])[0], 'vines');
+  assert.equal(k('Shield of the Realm', ['R'])[0], 'dome'); assert.equal(k('Angel of Serenity', ['W'])[0], 'feathers'); assert.equal(k('Toxic Deluge', ['B'])[0], 'tide');
+  // extra global do título (gelo é variação azul; terremoto/disco/enxame são extras)
+  assert.deepEqual(k('Frost Titan', ['U']), ['frost', 'earth']);
+  assert.ok(k('Swarm of Locusts', ['G']).includes('zerg')); assert.ok(k('Wrath of God', ['W']).includes('rage')); assert.ok(k('Time Walk', ['U']).includes('time'));
+});
+
+test('variedade: cartas pretas NÃO caem todas no mesmo efeito (nem em buraco negro)', () => {
+  const nomes = Array.from({ length: 300 }, (_, i) => 'Carta Preta ' + i * 7 + ' de ' + 'ABCDEFGHIJ'[i % 10]);
+  for (const cor of ['B', 'R', 'W', 'U', 'G']) {
+    const cont = {}; nomes.forEach(n => { const v = PtFx.castKeys(n, [cor])[0]; cont[v] = (cont[v] || 0) + 1; });
+    const pool = PtFx.POOLS[cor];
+    assert.equal(Object.keys(cont).length, pool.length, cor + ' usa a piscina inteira: ' + JSON.stringify(cont));
+    assert.ok(Math.max(...Object.values(cont)) < nomes.length * 0.35, cor + ' sem variação dominante: ' + JSON.stringify(cont));
+  }
+  assert.ok(PtFx.POOLS.B.length >= 6 && PtFx.POOLS.R.length >= 6 && PtFx.POOLS.G.length >= 5);
 });
 
 test('titleKeys: regra por palavra (e nada para título sem palavra reconhecida)', () => {
   const keys = n => PtFx.titleKeys(n).map(k => k.key);
-  assert.deepEqual(keys('Brainstorm'), ['storm']);               // brain + storm: a tempestade
+  assert.ok(keys('Brainstorm').includes('rain'));                 // brain + storm: a tempestade
   assert.ok(keys('Wrath of God').includes('divine') && keys('Wrath of God').includes('rage'));
   assert.ok(keys('Steam Vents').includes('steam')); assert.ok(keys('Time Walk').includes('time'));
+  assert.ok(keys('Dragon Whelp').includes('breath')); assert.ok(keys('Magma Jet').includes('lava')); assert.ok(keys('Vampire Lacerator').includes('bats'));
   assert.deepEqual(keys('Tarmogoyf'), []);
+  assert.ok(PtFx.titleKeys('Thunderstorm Frost Dragon Inferno').length <= 3);
 });
 
 test('landKey: terreno virado ganha um efeito discreto pelo nome', () => {
@@ -67,4 +81,8 @@ test('hitByWrath: cada varredor só pega os tipos certos', () => {
   assert.equal(PtFx.hitByWrath(['Creature'], crit), true); assert.equal(PtFx.hitByWrath(['Creature'], land), false);
   assert.equal(PtFx.hitByWrath(['!Land'], art), true); assert.equal(PtFx.hitByWrath(['!Land'], land), false);
   assert.equal(PtFx.hitByWrath(['*'], land), true); assert.equal(PtFx.hitByWrath(['Land'], land), true);
+});
+
+test('nível do efeito pelo custo de mana: barata = sutil, cara = a tela toda', () => {
+  assert.deepEqual([0, 1, 2].map(PtFx.level), [1, 1, 1]); assert.deepEqual([3, 4].map(PtFx.level), [2, 2]); assert.deepEqual([5, 6, 10].map(PtFx.level), [3, 3, 3]);
 });
