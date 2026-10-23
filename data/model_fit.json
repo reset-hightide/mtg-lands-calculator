@@ -1,0 +1,61 @@
+{
+ "n": 39287,
+ "mdfc_weights_refit": {
+  "nonmythic": 0.5119057741442493,
+  "mythic": 0.8945157280886625
+ },
+ "mdfc_weights_karsten": {
+  "nonmythic": 0.38,
+  "mythic": 0.74
+ },
+ "refit": {
+  "Intercept": 20.226768268670853,
+  "CMC": 1.4311527853724018,
+  "Cheap_draw": -0.22810322611218506,
+  "Cheap_ramp": -0.23134408303454337,
+  "Companion": 0.038986449015203165,
+  "Quantity_of_colors": 0.6392843407598899,
+  "Aggro": 0.08587419518437867,
+  "Combo": -2.218403212426148,
+  "Control": 0.29846065316379844,
+  "Lands": 12.525963387712125,
+  "Ramp": 4.3911556293707115,
+  "Tempo": -0.36348301146643014,
+  "Colors*Aggro": -0.6702538431976555,
+  "Colors*Combo": 0.7420728305089725,
+  "Colors*Control": -0.25544262463744016,
+  "Colors*Lands": -3.057759800773759,
+  "Colors*Ramp": -1.0895242054098242,
+  "Colors*Tempo": -0.30297592939173573
+ },
+ "paper": {
+  "Intercept": 20.2185,
+  "CMC": 1.4316,
+  "Cheap_draw": -0.2283,
+  "Cheap_ramp": -0.2304,
+  "Companion": 0.0364,
+  "Quantity_of_colors": 0.6391,
+  "Aggro": 0.0937,
+  "Combo": -2.1148,
+  "Control": 0.3099,
+  "Lands": 12.626,
+  "Ramp": 4.441,
+  "Tempo": -0.3831,
+  "Colors*Aggro": -0.6748,
+  "Colors*Combo": 0.7114,
+  "Colors*Control": -0.2602,
+  "Colors*Lands": -3.0869,
+  "Colors*Ramp": -1.1077,
+  "Colors*Tempo": -0.2844
+ },
+ "refit_metrics": {
+  "r2": 0.5671014228728044,
+  "mae": 1.3043614852078396,
+  "rmse": 1.7473654680714472
+ },
+ "paper_metrics_on_all_data": {
+  "r2": 0.5670798305217827,
+  "mae": 1.3044357426223012,
+  "rmse": 1.7474090455513474
+ }
+}
